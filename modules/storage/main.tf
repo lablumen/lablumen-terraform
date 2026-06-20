@@ -36,7 +36,9 @@ module "ai_lambda" {
 
   environment_variables = {
     BEDROCK_EMBED_MODEL_ID = "amazon.titan-embed-text-v1"
-    BEDROCK_TEXT_MODEL_ID  = "amazon.nova-2-lite-v1:0"
+    # Nova Lite v1 is the ONLY on-demand text model permitted in us-east-1 under org SCP
+    # p-rn6vr8ok. Nova 2 Lite needs a cross-region inference profile (us./global.) the SCP denies.
+    BEDROCK_TEXT_MODEL_ID = "amazon.nova-lite-v1:0"
     # DATABASE_URL is injected from Secrets Manager at deploy time.
   }
 
