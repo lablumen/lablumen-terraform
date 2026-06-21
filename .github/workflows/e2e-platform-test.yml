@@ -64,6 +64,7 @@ jobs:
 
       # ── Phase 1b: Terraform two-stage bootstrap ───────────────────────────────
       - name: Setup Terraform
+        id: setup_terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~> 1.9"
@@ -264,7 +265,7 @@ jobs:
 
       # ── Cleanup on failure ────────────────────────────────────────────────────
       - name: Destroy infrastructure on failure
-        if: failure()
+        if: failure() && steps.setup_terraform.outcome == 'success'
         working-directory: lablumen-terraform
         run: |
           echo "Pipeline failed — running terraform destroy to prevent orphaned resources..."
