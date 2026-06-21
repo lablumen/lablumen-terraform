@@ -9,7 +9,6 @@ module "ai_lambda" {
   memory_size   = var.memory_size
 
   source_path = var.source_path
-  python_cmd  = "python"
 
   environment_variables = {
     BEDROCK_EMBED_MODEL_ID = var.bedrock_embed_model_id
