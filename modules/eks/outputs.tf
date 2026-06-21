@@ -21,3 +21,11 @@ output "karpenter_node_iam_role_name" {
 output "karpenter_queue_name" {
   value = module.karpenter.queue_name
 }
+
+output "karpenter_controller_role_arn" {
+  value = module.karpenter.iam_role_arn
+}
+
+output "cluster_certificate_authority_data" {
+  value = module.eks.cluster_certificate_authority_data
+}

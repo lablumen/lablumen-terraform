@@ -6,18 +6,27 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.60"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.31"
+    }
   }
 
-  # Remote state backend (Phase 0). The bucket + lock table below are created ONCE by ./bootstrap
-  # (which uses local state — it cannot store its own state in the backend it creates). After
-  # `terraform apply` in ./bootstrap, run `terraform init -migrate-state` here to move root state
-  # into S3. The bucket/table names here are literals (backend blocks cannot use variables) and
-  # MUST match ./bootstrap/variables.tf.
-  backend "s3" {
-    bucket         = "lablumen-tfstate"
-    key            = "global/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "lablumen-tflock"
-    encrypt        = true
-  }
+  # ── REMOTE BACKEND (disabled — org account cleanup risk) ─────────────────────
+  # The org AWS account periodically wipes resources. If the S3 bucket below is
+  # deleted mid-session, the remote tfstate is gone and `terraform destroy`
+  # becomes impossible, leaving orphaned resources with no state to track them.
+  #
+  # STATE IS LOCAL until the infra is stable and the account is confirmed safe.
+  # To re-enable: uncomment the block, run `terraform init -migrate-state`, and
+  # first apply bootstrap/ to (re-)create the bucket + DynamoDB table.
+  # See CURRENT_STATUS.md § "State backend" for the full decision record.
+  #
+  # backend "s3" {
+  #   bucket         = "lablumen-tfstate"
+  #   key            = "global/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   dynamodb_table = "lablumen-tflock"
+  #   encrypt        = true
+  # }
 }

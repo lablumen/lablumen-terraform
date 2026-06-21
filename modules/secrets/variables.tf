@@ -18,7 +18,15 @@ variable "ssm_path_prefix" {
 variable "secret_recovery_window_days" {
   type        = number
   default     = 7
-  description = "Recovery window (days) before a deleted secret is permanently purged."
+  description = "Recovery window in days before a deleted secret is permanently purged. Use 0 only in non-production environments where immediate deletion is intentional."
+
+  validation {
+    condition     = var.secret_recovery_window_days == 0 || var.secret_recovery_window_days >= 7
+    error_message = "secret_recovery_window_days must be 0 (immediate, non-prod only) or between 7 and 30."
+  }
 }
 
-variable "tags" { type = map(string) }
+variable "tags" {
+  type        = map(string)
+  description = "Tags applied to all resources."
+}

@@ -47,8 +47,8 @@ module "rds" {
   vpc_security_group_ids = [aws_security_group.rds.id]
 
   storage_encrypted   = true
-  deletion_protection = false
-  skip_final_snapshot = true
+  deletion_protection = var.deletion_protection
+  skip_final_snapshot = var.skip_final_snapshot
 
   tags = var.tags
 }

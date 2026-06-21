@@ -1,3 +1,5 @@
+data "aws_region" "current" {}
+
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.8"
@@ -68,7 +70,7 @@ resource "aws_security_group" "vpc_endpoints" {
 
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = module.vpc.vpc_id
-  service_name      = "com.amazonaws.us-east-1.s3"
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = module.vpc.private_route_table_ids
 
@@ -85,7 +87,7 @@ resource "aws_vpc_endpoint" "s3" {
 
 resource "aws_vpc_endpoint" "ssm" {
   vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.us-east-1.ssm"
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.ssm"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = module.vpc.private_subnets
@@ -96,7 +98,7 @@ resource "aws_vpc_endpoint" "ssm" {
 
 resource "aws_vpc_endpoint" "secretsmanager" {
   vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.us-east-1.secretsmanager"
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.secretsmanager"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = module.vpc.private_subnets
@@ -107,7 +109,7 @@ resource "aws_vpc_endpoint" "secretsmanager" {
 
 resource "aws_vpc_endpoint" "bedrock_runtime" {
   vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.us-east-1.bedrock-runtime"
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.bedrock-runtime"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = module.vpc.private_subnets
@@ -118,7 +120,7 @@ resource "aws_vpc_endpoint" "bedrock_runtime" {
 
 resource "aws_vpc_endpoint" "textract" {
   vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.us-east-1.textract"
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.textract"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = module.vpc.private_subnets
@@ -129,7 +131,7 @@ resource "aws_vpc_endpoint" "textract" {
 
 resource "aws_vpc_endpoint" "ecr_api" {
   vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.us-east-1.ecr.api"
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.ecr.api"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = module.vpc.private_subnets
@@ -140,7 +142,7 @@ resource "aws_vpc_endpoint" "ecr_api" {
 
 resource "aws_vpc_endpoint" "ecr_dkr" {
   vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.us-east-1.ecr.dkr"
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.ecr.dkr"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = module.vpc.private_subnets
@@ -151,7 +153,7 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
 
 resource "aws_vpc_endpoint" "logs" {
   vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.us-east-1.logs"
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.logs"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = module.vpc.private_subnets
@@ -162,7 +164,7 @@ resource "aws_vpc_endpoint" "logs" {
 
 resource "aws_vpc_endpoint" "sqs" {
   vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.us-east-1.sqs"
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.sqs"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = module.vpc.private_subnets

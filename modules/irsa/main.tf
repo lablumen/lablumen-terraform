@@ -5,45 +5,6 @@ locals {
   oidc_issuer = replace(var.cluster_oidc_issuer_url, "https://", "")
 }
 
-# ---- Cognito -----------------------------------------------------------------------
-
-resource "aws_cognito_user_pool" "this" {
-  name                     = var.user_pool_name
-  username_attributes      = ["email"]
-  auto_verified_attributes = ["email"]
-
-  password_policy {
-    minimum_length    = 8
-    require_lowercase = true
-    require_numbers   = true
-    require_symbols   = false
-    require_uppercase = true
-  }
-
-  tags = var.tags
-}
-
-resource "aws_cognito_user_pool_client" "web" {
-  name         = "${var.project}-web"
-  user_pool_id = aws_cognito_user_pool.this.id
-
-  generate_secret                      = false
-  explicit_auth_flows                  = ["ALLOW_USER_SRP_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
-  supported_identity_providers         = ["COGNITO"]
-  allowed_oauth_flows_user_pool_client = true
-  allowed_oauth_flows                  = ["code"]
-  allowed_oauth_scopes                 = ["email", "openid", "profile"]
-  callback_urls                        = ["http://localhost:5173/callback"]
-  logout_urls                          = ["http://localhost:5173"]
-}
-
-resource "aws_cognito_user_group" "roles" {
-  for_each = toset(["PATIENT", "LAB_STAFF", "LAB_ADMIN"])
-
-  name         = each.value
-  user_pool_id = aws_cognito_user_pool.this.id
-}
-
 # ---- IRSA: ESO — cluster-level config-reader --------------------------------------
 # Sole principal permitted to call secretsmanager:GetSecretValue on lablumen/app/*
 # and ssm:GetParameter* on /lablumen/config/*. Per-service pods receive config from
@@ -190,6 +151,25 @@ resource "aws_iam_policy" "notification_service" {
 resource "aws_iam_role_policy_attachment" "notification_service" {
   role       = module.notification_service_irsa.iam_role_name
   policy_arn = aws_iam_policy.notification_service.arn
+}
+
+# ---- IRSA: AWS Load Balancer Controller -------------------------------------------
+
+module "lbc_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.44"
+
+  role_name                              = "${var.project}-lbc"
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = var.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+    }
+  }
+
+  tags = var.tags
 }
 
 # ---- IRSA: ai-lambda — Textract + Bedrock + S3 ------------------------------------
