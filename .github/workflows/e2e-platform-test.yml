@@ -55,11 +55,9 @@ jobs:
         run: |
           # Generate a unique suffix so the S3 bucket name doesn't collide across runs
           BUCKET_SUFFIX=$(date +%s%N | sha256sum | head -c 8)
-          cat >> terraform.tfvars <<EOF
-
-          reports_bucket_name = "lablumen-reports-ci-${BUCKET_SUFFIX}"
-          ses_sender_email    = "${{ secrets.SES_SENDER_EMAIL }}"
-          EOF
+          # Replace existing placeholder values in-place rather than appending
+          sed -i "s|^reports_bucket_name.*|reports_bucket_name = \"lablumen-reports-ci-${BUCKET_SUFFIX}\"|" terraform.tfvars
+          sed -i "s|^ses_sender_email.*|ses_sender_email    = \"${{ secrets.SES_SENDER_EMAIL }}\"|" terraform.tfvars
           echo "Bucket suffix: ${BUCKET_SUFFIX}"
 
       # ── Phase 1b: Terraform two-stage bootstrap ───────────────────────────────
