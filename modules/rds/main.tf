@@ -19,6 +19,10 @@ resource "aws_security_group" "rds" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 module "rds" {

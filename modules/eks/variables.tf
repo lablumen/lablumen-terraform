@@ -20,8 +20,8 @@ variable "subnet_ids" {
 
 variable "node_instance_types" {
   type        = list(string)
-  description = "EC2 instance type(s) for the default managed node group."
-  default     = ["t3.large"]
+  description = "EC2 instance type(s) for the default managed node group. (t3.large is blocked by the org SCP; use t3.medium.)"
+  default     = ["t3.medium"]
 }
 
 variable "node_min_size" {
@@ -40,6 +40,24 @@ variable "node_desired_size" {
   type        = number
   description = "Desired number of nodes in the default managed node group at creation time."
   default     = 2
+}
+
+variable "cluster_admin_access_entries" {
+  type        = map(string)
+  description = "Map of friendly name → IAM principal ARN to grant cluster-admin via EKS Access Entries (e.g. your admin role for the ArgoCD bootstrap)."
+  default     = {}
+}
+
+variable "cluster_enabled_log_types" {
+  type        = list(string)
+  description = "EKS control-plane log types to ship to CloudWatch."
+  default     = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+}
+
+variable "log_retention_days" {
+  type        = number
+  description = "Retention for the EKS control-plane CloudWatch log group."
+  default     = 14
 }
 
 variable "tags" {

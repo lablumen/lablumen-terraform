@@ -1,0 +1,106 @@
+name: terraform
+
+# Pipeline: scan (Checkov) → plan → manual approval → apply.
+# PRs run scan + plan only. Pushes to main run scan + plan, then apply behind the
+# `production` GitHub Environment (required-reviewer approval = the manual gate).
+on:
+  pull_request:
+    paths: ["**/*.tf", "**/*.tfvars", ".github/workflows/terraform.yml"]
+  push:
+    branches: [main]
+    paths: ["**/*.tf", "**/*.tfvars", ".github/workflows/terraform.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write          # OIDC federation to AWS (no static keys)
+  pull-requests: write     # post the plan summary on PRs
+  security-events: write   # upload Checkov SARIF to GitHub code scanning
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.9.8"
+  # Domain must NOT be committed — supply it as a repo variable.
+  TF_VAR_domain_name: ${{ vars.DOMAIN_NAME }}
+
+jobs:
+  # ---- 1. SCAN -------------------------------------------------------------------
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkov IaC scan
+        uses: bridgecrew/checkov-action@v12
+        with:
+          directory: .
+          framework: terraform
+          quiet: true
+          soft_fail: false            # fail the pipeline on policy violations
+          output_format: cli,sarif
+          output_file_path: console,results.sarif
+
+      - name: Upload Checkov SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+
+  # ---- 2. PLAN -------------------------------------------------------------------
+  plan:
+    needs: scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (tf-plan, read-only)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - run: terraform fmt -check -recursive
+      - run: terraform init -input=false
+      - run: terraform validate
+      - name: Terraform plan
+        run: terraform plan -input=false -no-color -out=tfplan
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: tfplan
+          retention-days: 5
+
+  # ---- 3. APPLY (manual approval via the `production` environment) ----------------
+  apply:
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production   # configure required reviewers here = the approval gate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (tf-apply, admin)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_APPLY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - run: terraform init -input=false
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+
+      - name: Terraform apply
+        run: terraform apply -input=false -no-color tfplan

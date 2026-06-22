@@ -50,7 +50,7 @@ variable "vpc_cidr" {
 
 variable "subnet_ids" {
   type        = list(string)
-  description = "Subnet IDs for the RDS DB subnet group. Should be the isolated DB-tier subnets (no IGW/NAT route)."
+  description = "Subnet IDs for the RDS DB subnet group. Should be the isolated DB-tier subnets."
 }
 
 variable "deletion_protection" {
@@ -61,7 +61,7 @@ variable "deletion_protection" {
 
 variable "skip_final_snapshot" {
   type        = bool
-  description = "If false, a final DB snapshot is taken before deletion. Set to false for production environments."
+  description = "If false, a final DB snapshot is taken before deletion."
   default     = true
 }
 

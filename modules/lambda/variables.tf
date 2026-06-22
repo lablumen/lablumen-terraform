@@ -42,6 +42,12 @@ variable "memory_size" {
   default     = 512
 }
 
+variable "log_retention_days" {
+  type        = number
+  description = "CloudWatch Logs retention for the Lambda log group."
+  default     = 14
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags applied to all resources."

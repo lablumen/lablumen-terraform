@@ -5,8 +5,28 @@ module "eks" {
   cluster_name    = var.cluster_name
   cluster_version = var.cluster_version
 
-  cluster_endpoint_public_access           = true
+  cluster_endpoint_public_access = true
+
+  # Access Entries (modern auth). The apply principal (tf-apply role) gets admin automatically;
+  # additional human/role admins are granted via var.cluster_admin_access_entries.
+  authentication_mode                      = "API"
   enable_cluster_creator_admin_permissions = true
+
+  access_entries = {
+    for name, arn in var.cluster_admin_access_entries : name => {
+      principal_arn = arn
+      policy_associations = {
+        admin = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
+  }
+
+  # Control-plane logging to CloudWatch (lean observability — rubric "CloudWatch log groups").
+  cluster_enabled_log_types              = var.cluster_enabled_log_types
+  cloudwatch_log_group_retention_in_days = var.log_retention_days
 
   vpc_id     = var.vpc_id
   subnet_ids = var.subnet_ids

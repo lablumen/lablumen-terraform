@@ -3,13 +3,7 @@ module "notifications_queue" {
   version = "~> 4.2"
 
   name                       = var.queue_name
-  visibility_timeout_seconds = 120
-
-  tags = var.tags
-}
-
-resource "aws_sesv2_email_identity" "sender" {
-  email_identity = var.ses_sender_email
+  visibility_timeout_seconds = var.visibility_timeout_seconds
 
   tags = var.tags
 }

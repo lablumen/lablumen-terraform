@@ -48,19 +48,5 @@ resource "aws_s3_bucket_public_access_block" "tfstate" {
   restrict_public_buckets = true
 }
 
-# ---- DynamoDB table for state locking ----
-
-resource "aws_dynamodb_table" "tflock" {
-  name         = var.lock_table_name
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
+# Locking is S3-native (root backend uses `use_lockfile = true`) — no DynamoDB table required.
+# The lock is a short-lived <key>.tflock object written/deleted in this bucket by Terraform.

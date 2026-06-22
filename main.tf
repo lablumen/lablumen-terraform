@@ -1,31 +1,8 @@
-provider "aws" {
-  region = var.aws_region
-
-  default_tags {
-    tags = var.tags
-  }
-}
-
-provider "kubernetes" {
-  host                   = module.eks.cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
-  }
-}
-
-locals {
-  cluster_name = "${var.project}-eks"
-}
-
 # ---------------------------------------------------------------------------
-# Network — VPC, subnets, NAT GW, VPC endpoints (region-dynamic)
+# VPC — subnets, NAT GW, S3 gateway + interface endpoints
 # ---------------------------------------------------------------------------
-module "network" {
-  source = "./modules/network"
+module "vpc" {
+  source = "./modules/vpc"
 
   name             = var.project
   cidr             = var.vpc_cidr
@@ -34,27 +11,32 @@ module "network" {
   public_subnets   = var.public_subnets
   database_subnets = var.database_subnets
   cluster_name     = local.cluster_name
-  tags             = var.tags
+  tags             = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
-# EKS — control plane + managed node group + Karpenter
+# EKS — control plane + managed node group + Karpenter + Access Entries
 # ---------------------------------------------------------------------------
 module "eks" {
   source = "./modules/eks"
 
-  cluster_name    = local.cluster_name
-  cluster_version = var.cluster_version
-  vpc_id          = module.network.vpc_id
-  subnet_ids      = module.network.private_subnets
-  tags            = var.tags
+  cluster_name                 = local.cluster_name
+  cluster_version              = var.cluster_version
+  vpc_id                       = module.vpc.vpc_id
+  subnet_ids                   = module.vpc.private_subnets
+  cluster_admin_access_entries = var.cluster_admin_access_entries
+  node_instance_types          = var.node_instance_types
+  node_min_size                = var.node_min_size
+  node_max_size                = var.node_max_size
+  node_desired_size            = var.node_desired_size
+  tags                         = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
-# Data — RDS Postgres (isolated DB-tier subnets, SM-managed credentials)
+# RDS — Postgres in isolated DB subnets, Secrets Manager-managed credentials
 # ---------------------------------------------------------------------------
-module "data" {
-  source = "./modules/data"
+module "rds" {
+  source = "./modules/rds"
 
   identifier           = "${var.project}-pg"
   engine_version       = var.db_engine_version
@@ -64,44 +46,73 @@ module "data" {
   allocated_storage    = var.db_allocated_storage
   db_name              = var.db_name
   username             = var.db_username
-  vpc_id               = module.network.vpc_id
+  vpc_id               = module.vpc.vpc_id
   vpc_cidr             = var.vpc_cidr
-  subnet_ids           = module.network.database_subnets
-  tags                 = var.tags
+  subnet_ids           = module.vpc.database_subnets
+  tags                 = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
-# Storage — private KMS-encrypted S3 bucket for report PDFs
+# S3 — reports bucket (KMS) + frontend SPA bucket (private, CloudFront OAC)
 # ---------------------------------------------------------------------------
-module "storage" {
-  source = "./modules/storage"
+module "s3" {
+  source = "./modules/s3"
 
-  reports_bucket_name = var.reports_bucket_name
-  tags                = var.tags
+  reports_bucket_name  = var.reports_bucket_name
+  frontend_bucket_name = var.frontend_bucket_name
+  tags                 = local.common_tags
+}
+
+# ---------------------------------------------------------------------------
+# CloudFront — SPA distribution (OAC → frontend bucket) + Route53 alias record
+# ---------------------------------------------------------------------------
+module "cloudfront" {
+  source = "./modules/cloudfront"
+
+  name                                 = var.project
+  aliases                              = [local.frontend_fqdn]
+  frontend_bucket_id                   = module.s3.frontend_bucket_id
+  frontend_bucket_arn                  = module.s3.frontend_bucket_arn
+  frontend_bucket_regional_domain_name = module.s3.frontend_bucket_regional_domain_name
+  acm_certificate_arn                  = data.aws_acm_certificate.primary.arn
+  route53_zone_id                      = data.aws_route53_zone.primary.zone_id
+  tags                                 = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
 # Lambda — AI processing function + S3 ObjectCreated trigger
+# Gated OFF by default: Terraform does not build app code. The zip is produced by lablumen-app CI
+# (Linux) and consumed as a prebuilt artifact when var.enable_ai_lambda is turned on.
 # ---------------------------------------------------------------------------
 module "lambda" {
   source = "./modules/lambda"
+  count  = var.enable_ai_lambda ? 1 : 0
 
   function_name      = var.lambda_function_name
   source_path        = "${path.module}/../lablumen-app/serverless/ai-service"
-  reports_bucket_id  = module.storage.reports_bucket_id
-  reports_bucket_arn = module.storage.reports_bucket_arn
-  tags               = var.tags
+  reports_bucket_id  = module.s3.reports_bucket_id
+  reports_bucket_arn = module.s3.reports_bucket_arn
+  tags               = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
-# Messaging — SQS notifications queue + SES v2 sender identity
+# SQS — notifications queue
 # ---------------------------------------------------------------------------
-module "messaging" {
-  source = "./modules/messaging"
+module "sqs" {
+  source = "./modules/sqs"
 
-  queue_name       = var.notifications_queue_name
+  queue_name = var.notifications_queue_name
+  tags       = local.common_tags
+}
+
+# ---------------------------------------------------------------------------
+# SES — verified sender identity
+# ---------------------------------------------------------------------------
+module "ses" {
+  source = "./modules/ses"
+
   ses_sender_email = var.ses_sender_email
-  tags             = var.tags
+  tags             = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
@@ -111,7 +122,7 @@ module "ecr" {
   source = "./modules/ecr"
 
   repositories = var.ecr_repositories
-  tags         = var.tags
+  tags         = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
@@ -122,37 +133,32 @@ module "cognito" {
 
   project        = var.project
   user_pool_name = var.user_pool_name
-  tags           = var.tags
+  callback_urls  = ["https://${local.frontend_fqdn}/callback", "http://localhost:5173/callback"]
+  logout_urls    = ["https://${local.frontend_fqdn}", "http://localhost:5173"]
+  tags           = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
-# IRSA — IAM roles for EKS service accounts (ESO, report-service, etc.)
+# Secrets Manager — empty runtime secret shells (hand-populated out-of-band)
 # ---------------------------------------------------------------------------
-module "irsa" {
-  source = "./modules/irsa"
-
-  project                 = var.project
-  oidc_provider_arn       = module.eks.oidc_provider_arn
-  cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
-  reports_bucket_arn      = module.storage.reports_bucket_arn
-  queue_arn               = module.messaging.queue_arn
-  ses_sender_email        = var.ses_sender_email
-  tags                    = var.tags
-}
-
-# ---------------------------------------------------------------------------
-# Secrets — Secrets Manager namespace containers + SSM config params
-# ---------------------------------------------------------------------------
-module "secrets" {
-  source = "./modules/secrets"
+module "secretsmanager" {
+  source = "./modules/secretsmanager"
 
   runtime_secrets = {
-    "lablumen/app/database-url" = "Full Postgres DSN incl. creds for service pods + ai_lambda. Compose from module.data endpoint + the RDS-managed master secret."
+    "lablumen/app/database-url" = "Full Postgres DSN incl. creds for service pods + ai_lambda. Compose from module.rds endpoint + the RDS-managed master secret."
   }
+  tags = local.common_tags
+}
 
-  ssm_config = {
-    "reports-bucket"        = module.storage.reports_bucket_id
-    "sqs-url"               = module.messaging.queue_url
+# ---------------------------------------------------------------------------
+# SSM Parameter Store — non-sensitive runtime config
+# ---------------------------------------------------------------------------
+module "ssm" {
+  source = "./modules/ssm"
+
+  config = {
+    "reports-bucket"        = module.s3.reports_bucket_id
+    "sqs-url"               = module.sqs.queue_url
     "cognito-user-pool-id"  = module.cognito.user_pool_id
     "cognito-app-client-id" = module.cognito.app_client_id
     "ses-sender"            = var.ses_sender_email
@@ -160,99 +166,33 @@ module "secrets" {
     "bedrock-text-model"    = "amazon.nova-lite-v1:0"
     "region"                = var.aws_region
     "presigned-url-ttl"     = "3600"
-    "cors-origins"          = "http://localhost:5173"
+    "cors-origins"          = "https://${local.frontend_fqdn},http://localhost:5173"
   }
-
-  tags = var.tags
+  tags = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
-# moved{} blocks — rename module.identity.* → module.cognito.* and module.irsa.*
-# so existing state is preserved without requiring terraform state mv.
-# Remove these blocks once you have run terraform apply successfully.
+# IAM — GitHub OIDC + pipeline roles + IRSA roles (incl. external-dns)
 # ---------------------------------------------------------------------------
+module "iam" {
+  source = "./modules/iam"
 
-moved {
-  from = module.identity.aws_cognito_user_pool.this
-  to   = module.cognito.aws_cognito_user_pool.this
-}
+  project = var.project
 
-moved {
-  from = module.identity.aws_cognito_user_pool_client.web
-  to   = module.cognito.aws_cognito_user_pool_client.web
-}
+  # CI/CD identity
+  github_org                  = var.github_org
+  state_bucket_name           = var.state_bucket_name
+  ecr_repository_arns         = values(module.ecr.repository_arns)
+  frontend_bucket_arn         = module.s3.frontend_bucket_arn
+  cloudfront_distribution_arn = module.cloudfront.distribution_arn
 
-moved {
-  from = module.identity.aws_cognito_user_group.roles
-  to   = module.cognito.aws_cognito_user_group.roles
-}
+  # EKS / IRSA
+  oidc_provider_arn       = module.eks.oidc_provider_arn
+  cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
+  reports_bucket_arn      = module.s3.reports_bucket_arn
+  queue_arn               = module.sqs.queue_arn
+  ses_sender_email        = var.ses_sender_email
+  route53_zone_arn        = data.aws_route53_zone.primary.arn
 
-moved {
-  from = module.identity.aws_iam_role.eso
-  to   = module.irsa.aws_iam_role.eso
-}
-
-moved {
-  from = module.identity.aws_iam_role_policy.eso
-  to   = module.irsa.aws_iam_role_policy.eso
-}
-
-moved {
-  from = module.identity.module.report_service_irsa
-  to   = module.irsa.module.report_service_irsa
-}
-
-moved {
-  from = module.identity.aws_iam_policy.report_service
-  to   = module.irsa.aws_iam_policy.report_service
-}
-
-moved {
-  from = module.identity.aws_iam_role_policy_attachment.report_service
-  to   = module.irsa.aws_iam_role_policy_attachment.report_service
-}
-
-moved {
-  from = module.identity.module.notification_service_irsa
-  to   = module.irsa.module.notification_service_irsa
-}
-
-moved {
-  from = module.identity.aws_iam_policy.notification_service
-  to   = module.irsa.aws_iam_policy.notification_service
-}
-
-moved {
-  from = module.identity.aws_iam_role_policy_attachment.notification_service
-  to   = module.irsa.aws_iam_role_policy_attachment.notification_service
-}
-
-moved {
-  from = module.identity.module.ai_lambda_irsa
-  to   = module.irsa.module.ai_lambda_irsa
-}
-
-moved {
-  from = module.identity.aws_iam_policy.ai_lambda
-  to   = module.irsa.aws_iam_policy.ai_lambda
-}
-
-moved {
-  from = module.identity.aws_iam_role_policy_attachment.ai_lambda
-  to   = module.irsa.aws_iam_role_policy_attachment.ai_lambda
-}
-
-moved {
-  from = module.storage.module.ai_lambda
-  to   = module.lambda.module.ai_lambda
-}
-
-moved {
-  from = module.storage.aws_lambda_permission.allow_s3
-  to   = module.lambda.aws_lambda_permission.allow_s3
-}
-
-moved {
-  from = module.storage.aws_s3_bucket_notification.reports
-  to   = module.lambda.aws_s3_bucket_notification.reports
+  tags = local.common_tags
 }

@@ -1,6 +1,6 @@
 variable "aws_region" {
   type        = string
-  description = "AWS region to deploy all resources into."
+  description = "AWS region to deploy all resources into. Must be us-east-1 for the CloudFront ACM cert."
   default     = "us-east-1"
 }
 
@@ -8,6 +8,45 @@ variable "project" {
   type        = string
   description = "Project name used as a prefix for all named resources."
   default     = "lablumen"
+}
+
+# ---- Ownership / environment tags (rubric: every resource tagged Environment + Owner) ----
+
+variable "environment" {
+  type        = string
+  description = "Environment tag value applied to all resources."
+  default     = "shared"
+}
+
+variable "owner" {
+  type        = string
+  description = "Owner tag value applied to all resources."
+  default     = "rnld101"
+}
+
+# ---- Domain (externally owned — never hardcoded) ----
+
+variable "domain_name" {
+  type        = string
+  description = "Apex domain you own (hosted zone + ACM cert already exist). Set via TF_VAR_domain_name or an untracked *.auto.tfvars — do NOT commit it."
+}
+
+variable "acm_certificate_domain" {
+  type        = string
+  description = "Domain used to look up the existing ACM certificate. Defaults to a wildcard on domain_name."
+  default     = null
+}
+
+variable "frontend_subdomain" {
+  type        = string
+  description = "Subdomain for the frontend SPA (CloudFront). Result: <frontend_subdomain>.<domain_name>."
+  default     = "app"
+}
+
+variable "api_subdomain" {
+  type        = string
+  description = "Subdomain for the API (ALB ingress, created by external-dns). Result: <api_subdomain>.<domain_name>."
+  default     = "api"
 }
 
 # ---- Network ----
@@ -46,79 +85,115 @@ variable "database_subnets" {
 
 variable "cluster_version" {
   type        = string
-  description = "Kubernetes version to run on the EKS control plane (e.g. '1.31')."
+  description = "Kubernetes version for the EKS control plane."
   default     = "1.31"
+}
+
+variable "cluster_admin_access_entries" {
+  type        = map(string)
+  description = "Map of friendly name → IAM principal ARN granted cluster-admin via EKS Access Entries (e.g. your admin role for the ArgoCD bootstrap). Set per-account."
+  default     = {}
+}
+
+variable "node_instance_types" {
+  type        = list(string)
+  description = "EC2 instance type(s) for the default managed node group. NOTE: the org SCP blocks t3.large; t3.medium is permitted."
+  default     = ["t3.medium"]
+}
+
+variable "node_min_size" {
+  type        = number
+  description = "Minimum nodes in the default managed node group."
+  default     = 1
+}
+
+variable "node_max_size" {
+  type        = number
+  description = "Maximum nodes in the default managed node group."
+  default     = 4
+}
+
+variable "node_desired_size" {
+  type        = number
+  description = "Desired nodes in the default managed node group at creation."
+  default     = 2
 }
 
 # ---- RDS Postgres ----
 
 variable "db_engine_version" {
-  type        = string
-  description = "PostgreSQL engine version (e.g. '16.4')."
-  default     = "16.4"
+  type    = string
+  default = "16.4"
 }
 
 variable "db_family" {
-  type        = string
-  description = "DB parameter group family (e.g. 'postgres16')."
-  default     = "postgres16"
+  type    = string
+  default = "postgres16"
 }
 
 variable "db_major_engine_version" {
-  type        = string
-  description = "Major engine version for the option group (e.g. '16')."
-  default     = "16"
+  type    = string
+  default = "16"
 }
 
 variable "db_instance_class" {
   type        = string
-  description = "RDS instance class (e.g. 'db.t3.medium')."
-  default     = "db.t3.medium"
+  description = "RDS instance class. Org SCP permits only micro classes (db.t3.micro / db.t4g.micro); larger is denied."
+  default     = "db.t4g.micro"
 }
 
 variable "db_allocated_storage" {
-  type        = number
-  description = "Initial allocated storage in GiB."
-  default     = 20
+  type    = number
+  default = 20
 }
 
 variable "db_name" {
-  type        = string
-  description = "Name of the default database created at provisioning time."
-  default     = "lablumen"
+  type    = string
+  default = "lablumen"
 }
 
 variable "db_username" {
-  type        = string
-  description = "Master DB username. Credentials are managed by Secrets Manager."
-  default     = "lablumen"
+  type    = string
+  default = "lablumen"
 }
 
-# ---- Storage / Lambda ----
+# ---- Storage ----
 
 variable "reports_bucket_name" {
   type        = string
-  description = "Globally-unique S3 bucket name for patient report PDFs. Change this before apply."
+  description = "Globally-unique S3 bucket name for patient report PDFs."
   default     = "lablumen-reports-change-me"
 }
 
-variable "lambda_function_name" {
+variable "frontend_bucket_name" {
   type        = string
-  description = "Name of the AI processing Lambda function."
-  default     = "lablumen-ai-processing"
+  description = "Globally-unique S3 bucket name for the frontend SPA static assets."
+  default     = "lablumen-frontend-change-me"
+}
+
+# ---- Lambda ----
+
+variable "enable_ai_lambda" {
+  type        = bool
+  description = "Whether to deploy the AI processing Lambda. Default false: Terraform must NOT build app code locally — the zip is built by lablumen-app CI (Linux) and consumed as a prebuilt artifact. Flip on once that artifact path exists."
+  default     = false
+}
+
+variable "lambda_function_name" {
+  type    = string
+  default = "lablumen-ai-processing"
 }
 
 # ---- Messaging ----
 
 variable "notifications_queue_name" {
-  type        = string
-  description = "SQS queue name for the notification-service."
-  default     = "lablumen-notifications"
+  type    = string
+  default = "lablumen-notifications"
 }
 
 variable "ses_sender_email" {
   type        = string
-  description = "Email address registered as a verified SES v2 sender identity."
+  description = "Email registered as a verified SES v2 sender identity."
   default     = "no-reply@lablumen.example"
 }
 
@@ -126,28 +201,40 @@ variable "ses_sender_email" {
 
 variable "ecr_repositories" {
   type        = list(string)
-  description = "List of ECR repository names to create. Add new service images here — no changes to main.tf required."
+  description = "ECR repository names to create. Frontend is static-hosted (S3/CloudFront), so it is NOT an ECR repo."
   default = [
     "lablumen/appointment-service",
     "lablumen/report-service",
     "lablumen/notification-service",
-    "lablumen/frontend",
   ]
 }
 
-# ---- Identity ----
+# ---- Cognito ----
 
 variable "user_pool_name" {
+  type    = string
+  default = "lablumen-users"
+}
+
+# ---- CI/CD identity ----
+
+variable "github_org" {
   type        = string
-  description = "Display name for the Cognito user pool."
-  default     = "lablumen-users"
+  description = "GitHub org/user owning the repos (used in OIDC trust policies)."
+  default     = "lablumen"
+}
+
+variable "state_bucket_name" {
+  type        = string
+  description = "S3 bucket holding Terraform state (must match backend.tf + bootstrap script)."
+  default     = "lablumen-tfstate"
 }
 
 # ---- Tags ----
 
 variable "tags" {
   type        = map(string)
-  description = "Default tags applied to all resources via the AWS provider default_tags block."
+  description = "Base tags merged with Environment/Owner and applied via default_tags."
   default = {
     Project   = "lablumen"
     ManagedBy = "terraform"

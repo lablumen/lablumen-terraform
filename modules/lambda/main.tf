@@ -10,6 +10,9 @@ module "ai_lambda" {
 
   source_path = var.source_path
 
+  # CloudWatch log group is created and managed by the module with explicit retention.
+  cloudwatch_logs_retention_in_days = var.log_retention_days
+
   environment_variables = {
     BEDROCK_EMBED_MODEL_ID = var.bedrock_embed_model_id
     # Nova Lite v1 is the ONLY on-demand text model permitted in us-east-1 under org SCP

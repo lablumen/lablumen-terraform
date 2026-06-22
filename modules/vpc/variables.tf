@@ -10,7 +10,7 @@ variable "cidr" {
 
 variable "azs" {
   type        = list(string)
-  description = "List of Availability Zone names to deploy into (e.g. ['us-east-1a', 'us-east-1b', 'us-east-1c'])."
+  description = "List of Availability Zone names to deploy into (e.g. ['us-east-1a', 'us-east-1b'])."
 }
 
 variable "private_subnets" {
