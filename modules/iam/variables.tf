@@ -68,9 +68,9 @@ variable "queue_arn" {
   description = "SQS notifications queue ARN (notification-service scope)."
 }
 
-variable "ses_sender_email" {
+variable "ses_identity_arn" {
   type        = string
-  description = "Verified SES sender identity email (notification-service SES scope)."
+  description = "SES domain identity ARN (notification-service ses:SendEmail scope)."
 }
 
 variable "route53_zone_arn" {

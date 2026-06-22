@@ -20,8 +20,7 @@ permissions:
 env:
   AWS_REGION: us-east-1
   TF_VERSION: "1.9.8"
-  # Domain must NOT be committed — supply it as a repo variable.
-  TF_VAR_domain_name: ${{ vars.DOMAIN_NAME }}
+  # domain_name is committed in terraform.tfvars (public, non-secret) — no env override needed.
 
 jobs:
   # ---- 1. SCAN -------------------------------------------------------------------

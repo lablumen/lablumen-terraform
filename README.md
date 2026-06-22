@@ -48,16 +48,15 @@ one Terraform module per AWS service.
 - AWS account + admin credentials for the one-time bootstrap.
 - A registered **domain** with a Route53 **hosted zone** and an **ISSUED ACM certificate** (wildcard
   `*.<domain>`) in **us-east-1**. Terraform looks these up — it does **not** create them.
-- The domain is never committed. Provide it via `TF_VAR_domain_name` (a GitHub Actions repo variable
-  `DOMAIN_NAME`) or an untracked `secrets.auto.tfvars`.
+- The domain is a public, non-secret value committed in `terraform.tfvars` as `domain_name`
+  (variable-driven — never baked into module code). Change it there to retarget a different domain.
 
 ## Bootstrap & run order
 ```bash
 # 1. One-time: create the state bucket (local state). Locking is S3-native (no DynamoDB).
 cd bootstrap && terraform init && terraform apply && cd ..
 
-# 2. Init (migrate state into S3 when prompted) and apply
-export TF_VAR_domain_name="your-domain.tld"
+# 2. Init (migrate state into S3 when prompted) and apply (domain_name comes from terraform.tfvars)
 terraform init -migrate-state
 terraform fmt -check -recursive && terraform validate
 terraform apply
@@ -74,9 +73,10 @@ takes over (subsequent changes flow through the pipelines automatically).
 **Required repo configuration (Settings → Secrets and variables → Actions → Variables):**
 | Variable | Value |
 |---|---|
-| `DOMAIN_NAME` | your domain (e.g. `example.tld`) |
 | `TF_PLAN_ROLE_ARN` | output `tf_plan_role_arn` |
 | `TF_APPLY_ROLE_ARN` | output `tf_apply_role_arn` |
+
+(`domain_name` lives in `terraform.tfvars`, so no `DOMAIN_NAME` variable is needed.)
 
 Plus a GitHub Environment named `production` with required reviewers.
 
@@ -87,7 +87,7 @@ Plus a GitHub Environment named `production` with required reviewers.
 ## Key variables
 | Variable | Default | Notes |
 |---|---|---|
-| `domain_name` | — (required) | Never hardcoded; set via env/untracked file. |
+| `domain_name` | `rnld101.xyz` | Public, non-secret; in `terraform.tfvars`. Variable-driven, not baked into code. |
 | `acm_certificate_domain` | `*.<domain_name>` | Cert lookup domain. |
 | `frontend_subdomain` / `api_subdomain` | `app` / `api` | → `app.<domain>`, `api.<domain>`. |
 | `cluster_admin_access_entries` | `{}` | name→IAM ARN granted EKS cluster-admin (your bootstrap role). |

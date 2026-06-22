@@ -1,6 +1,11 @@
-variable "ses_sender_email" {
+variable "domain_name" {
   type        = string
-  description = "Email address to register as a verified SES v2 sending identity. Must be verified before SES will send from it."
+  description = "Domain to register as a verified SES sending identity (Easy DKIM via Route53)."
+}
+
+variable "route53_zone_id" {
+  type        = string
+  description = "Route53 hosted zone ID for the domain, where the DKIM CNAME records are created."
 }
 
 variable "tags" {

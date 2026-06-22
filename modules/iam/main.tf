@@ -1,6 +1,3 @@
-data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}
-
 locals {
   oidc_issuer      = replace(var.cluster_oidc_issuer_url, "https://", "")
   repo_terraform   = "repo:${var.github_org}/${var.terraform_repo}"
@@ -167,6 +164,8 @@ resource "aws_iam_role_policy" "frontend_deploy" {
       { Effect = "Allow", Action = ["s3:ListBucket"], Resource = var.frontend_bucket_arn },
       { Effect = "Allow", Action = ["s3:PutObject", "s3:DeleteObject"], Resource = "${var.frontend_bucket_arn}/*" },
       { Effect = "Allow", Action = ["cloudfront:CreateInvalidation"], Resource = var.cloudfront_distribution_arn },
+      # Read deploy config (bucket/distribution/api-url/cognito) at runtime — single source of truth.
+      { Effect = "Allow", Action = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"], Resource = "arn:aws:ssm:*:*:parameter/lablumen/config/*" },
     ]
   })
 }
@@ -269,7 +268,7 @@ resource "aws_iam_policy" "notification_service" {
       {
         Effect   = "Allow"
         Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-        Resource = "arn:aws:ses:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:identity/${var.ses_sender_email}"
+        Resource = var.ses_identity_arn
       },
     ]
   })

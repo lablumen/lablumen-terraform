@@ -111,8 +111,9 @@ module "sqs" {
 module "ses" {
   source = "./modules/ses"
 
-  ses_sender_email = var.ses_sender_email
-  tags             = local.common_tags
+  domain_name     = var.domain_name
+  route53_zone_id = data.aws_route53_zone.primary.zone_id
+  tags            = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
@@ -161,12 +162,18 @@ module "ssm" {
     "sqs-url"               = module.sqs.queue_url
     "cognito-user-pool-id"  = module.cognito.user_pool_id
     "cognito-app-client-id" = module.cognito.app_client_id
-    "ses-sender"            = var.ses_sender_email
+    "ses-sender"            = local.ses_from_address
     "bedrock-embed-model"   = "amazon.titan-embed-text-v1"
     "bedrock-text-model"    = "amazon.nova-lite-v1:0"
     "region"                = var.aws_region
     "presigned-url-ttl"     = "3600"
     "cors-origins"          = "https://${local.frontend_fqdn},http://localhost:5173"
+
+    # Frontend deploy discovery (single source of truth — the frontend-deploy CI job reads these at
+    # runtime instead of duplicating them as GitHub variables).
+    "frontend-bucket"            = module.s3.frontend_bucket_id
+    "cloudfront-distribution-id" = module.cloudfront.distribution_id
+    "api-url"                    = "https://${local.api_fqdn}"
   }
   tags = local.common_tags
 }
@@ -191,7 +198,7 @@ module "iam" {
   cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
   reports_bucket_arn      = module.s3.reports_bucket_arn
   queue_arn               = module.sqs.queue_arn
-  ses_sender_email        = var.ses_sender_email
+  ses_identity_arn        = module.ses.identity_arn
   route53_zone_arn        = data.aws_route53_zone.primary.arn
 
   tags = local.common_tags

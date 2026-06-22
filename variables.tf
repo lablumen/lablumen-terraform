@@ -28,7 +28,7 @@ variable "owner" {
 
 variable "domain_name" {
   type        = string
-  description = "Apex domain you own (hosted zone + ACM cert already exist). Set via TF_VAR_domain_name or an untracked *.auto.tfvars — do NOT commit it."
+  description = "Apex domain you own (hosted zone + ACM cert already exist). Public, non-secret; set in terraform.tfvars. Variable-driven — never hardcoded in module code."
 }
 
 variable "acm_certificate_domain" {
@@ -191,10 +191,10 @@ variable "notifications_queue_name" {
   default = "lablumen-notifications"
 }
 
-variable "ses_sender_email" {
+variable "ses_from_local_part" {
   type        = string
-  description = "Email registered as a verified SES v2 sender identity."
-  default     = "no-reply@lablumen.example"
+  description = "Local part of the SES From address (before @). Full address is <local>@<domain_name>; the domain is the verified SES identity. e.g. 'no-reply' -> no-reply@<domain>."
+  default     = "no-reply"
 }
 
 # ---- ECR ----

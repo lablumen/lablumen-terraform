@@ -1,17 +1,16 @@
 # Centralized, non-secret configuration. (terraform.tfvars IS committed; *.auto.tfvars is gitignored.)
 # Secrets (DB master password, etc.) are managed by AWS Secrets Manager (RDS-managed) and Cognito.
-#
-# DO NOT put the domain here — it must not be hardcoded in the repo. Provide it at apply time via:
-#   export TF_VAR_domain_name="your-domain.tld"
-# or an untracked file, e.g. secrets.auto.tfvars (gitignored):
-#   domain_name                  = "your-domain.tld"
-#   cluster_admin_access_entries = { me = "arn:aws:iam::<acct>:role/<your-admin-role>" }
+# The domain below is a public, non-secret value (it's variable-driven, never baked into module code).
+# Account-specific extras (e.g. cluster_admin_access_entries) can go in an untracked secrets.auto.tfvars.
 
 aws_region  = "us-east-1"
 project     = "lablumen"
 environment = "shared"
 owner       = "rnld101"
 github_org  = "lablumen"
+
+# Apex domain you own (hosted zone + ACM cert already exist). Used for SES, CloudFront, ingress hosts.
+domain_name = "rnld101.xyz"
 
 vpc_cidr         = "10.0.0.0/16"
 azs              = ["us-east-1a", "us-east-1b"]
@@ -32,12 +31,16 @@ db_engine_version = "16.4"
 db_instance_class = "db.t4g.micro"
 
 # Globally-unique bucket names — CHANGE before first apply.
-reports_bucket_name  = "lablumen-reports-change-me"
-frontend_bucket_name = "lablumen-frontend-change-me"
+reports_bucket_name  = "lablumen-reports-101"
+frontend_bucket_name = "lablumen-frontend-101"
 
 notifications_queue_name = "lablumen-notifications"
-ses_sender_email         = "no-reply@lablumen.example"
 user_pool_name           = "lablumen-users"
+
+# SES sends from <ses_from_local_part>@<domain_name>. The DOMAIN comes from domain_name (set via
+# TF_VAR_domain_name / secrets.auto.tfvars) and is registered as a verified SES identity (Easy DKIM
+# in Route53). You set only the local part here → result: no-reply@<your-domain>.
+ses_from_local_part = "no-reply"
 
 # Frontend is static-hosted via S3 + CloudFront — it is NOT an ECR repo.
 ecr_repositories = [
