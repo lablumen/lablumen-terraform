@@ -3,8 +3,14 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
+variable "project" {
+  type        = string
+  description = "Project name — prefix for the derived state bucket name. Keep in sync with the root config."
+  default     = "lablumen"
+}
+
 variable "state_bucket_name" {
   type        = string
-  description = "S3 bucket holding the ROOT config's Terraform state. MUST match the bucket in ../backend.tf. S3 bucket names are globally unique — suffix with the account id if taken."
-  default     = "lablumen-tfstate"
+  description = "Optional override for the state bucket name. Leave null to derive <project>-tfstate-<account_id>. Whatever this resolves to is what you put in ../backend.hcl."
+  default     = null
 }

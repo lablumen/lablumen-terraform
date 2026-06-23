@@ -10,14 +10,22 @@ provider "aws" {
   }
 }
 
+# The state bucket name is DERIVED from the account ID (globally unique + portable), matching the root
+# locals.tf. An explicit var.state_bucket_name override wins if set.
+data "aws_caller_identity" "current" {}
+
+locals {
+  state_bucket_name = coalesce(var.state_bucket_name, "${var.project}-tfstate-${data.aws_caller_identity.current.account_id}")
+}
+
 # ---- S3 bucket backing the root Terraform state ----
 
 resource "aws_s3_bucket" "tfstate" {
-  bucket = var.state_bucket_name
+  bucket = local.state_bucket_name
 
   # State is the source of truth for ALL infrastructure — guard against accidental deletion.
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 

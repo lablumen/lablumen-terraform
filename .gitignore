@@ -37,6 +37,9 @@ override.tf.json
 *.auto.tfvars
 # NOTE: terraform.tfvars IS committed (centralized, non-secret defaults).
 #       Put any secret values in *.auto.tfvars or TF_VAR_ env vars.
+# Per-account partial backend config (holds the account-specific state bucket name).
+backend.hcl
+# NOTE: backend.hcl.example IS committed as the template.
 
 # ---- AWS SAM / Lambda packaging ----
 .aws-sam/

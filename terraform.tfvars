@@ -30,9 +30,9 @@ db_engine_version = "16.4"
 # Org SCP allows only micro RDS classes (db.t3.medium+ is denied). t4g.micro = Graviton, cheapest allowed.
 db_instance_class = "db.t4g.micro"
 
-# Globally-unique bucket names — CHANGE before first apply.
-reports_bucket_name  = "lablumen-reports-101"
-frontend_bucket_name = "lablumen-frontend-101"
+# S3 bucket names (state / reports / frontend) are DERIVED as <project>-<purpose>-<account_id> for
+# global uniqueness and account portability — see locals.tf. Override the *_bucket_name vars only if
+# you need a specific name.
 
 notifications_queue_name = "lablumen-notifications"
 user_pool_name           = "lablumen-users"

@@ -1,6 +1,18 @@
 locals {
   cluster_name = "${var.project}-eks"
 
+  # ---- Account-derived values (portability: nothing account-specific is hardcoded) ----
+  account_id = data.aws_caller_identity.current.account_id
+
+  # Globally-unique S3 bucket names. Default to a derived, account-suffixed name so a fresh account
+  # "just works"; an explicit var override wins if you need a specific name.
+  reports_bucket_name  = coalesce(var.reports_bucket_name, "${var.project}-reports-${local.account_id}")
+  frontend_bucket_name = coalesce(var.frontend_bucket_name, "${var.project}-frontend-${local.account_id}")
+  state_bucket_name    = coalesce(var.state_bucket_name, "${var.project}-tfstate-${local.account_id}")
+
+  # ECR registry base URL — consumed downstream (k8s global.imageRegistry / app CI). Derived, not pinned.
+  image_registry = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
+
   # Tags applied to every resource via the provider default_tags block.
   common_tags = merge(var.tags, {
     Environment = var.environment

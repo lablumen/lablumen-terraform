@@ -65,6 +65,11 @@ output "api_fqdn" {
 }
 
 # ---- Phase-0 handshake (non-secret pointers consumed by lablumen-k8s) ----
+output "image_registry" {
+  description = "ECR registry base URL (<account_id>.dkr.ecr.<region>.amazonaws.com). Copy into lablumen-k8s environments/_global.yaml global.imageRegistry."
+  value       = local.image_registry
+}
+
 output "ecr_repository_urls" {
   description = "ECR repo URIs. NON-SECRET — consumed as Helm image.repository."
   value       = module.ecr.repository_urls

@@ -58,8 +58,8 @@ module "rds" {
 module "s3" {
   source = "./modules/s3"
 
-  reports_bucket_name  = var.reports_bucket_name
-  frontend_bucket_name = var.frontend_bucket_name
+  reports_bucket_name  = local.reports_bucket_name
+  frontend_bucket_name = local.frontend_bucket_name
   tags                 = local.common_tags
 }
 
@@ -188,7 +188,7 @@ module "iam" {
 
   # CI/CD identity
   github_org                  = var.github_org
-  state_bucket_name           = var.state_bucket_name
+  state_bucket_name           = local.state_bucket_name
   ecr_repository_arns         = values(module.ecr.repository_arns)
   frontend_bucket_arn         = module.s3.frontend_bucket_arn
   cloudfront_distribution_arn = module.cloudfront.distribution_arn

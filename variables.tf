@@ -161,14 +161,14 @@ variable "db_username" {
 
 variable "reports_bucket_name" {
   type        = string
-  description = "Globally-unique S3 bucket name for patient report PDFs."
-  default     = "lablumen-reports-change-me"
+  description = "Optional override for the reports S3 bucket name. Leave null to derive a globally-unique name: <project>-reports-<account_id>."
+  default     = null
 }
 
 variable "frontend_bucket_name" {
   type        = string
-  description = "Globally-unique S3 bucket name for the frontend SPA static assets."
-  default     = "lablumen-frontend-change-me"
+  description = "Optional override for the frontend SPA S3 bucket name. Leave null to derive a globally-unique name: <project>-frontend-<account_id>."
+  default     = null
 }
 
 # ---- Lambda ----
@@ -226,8 +226,8 @@ variable "github_org" {
 
 variable "state_bucket_name" {
   type        = string
-  description = "S3 bucket holding Terraform state (must match backend.tf + bootstrap script)."
-  default     = "lablumen-tfstate"
+  description = "Optional override for the Terraform state bucket name (used to scope the tf-plan IAM policy). Leave null to derive <project>-tfstate-<account_id>, matching the bootstrap stack + backend.hcl."
+  default     = null
 }
 
 # ---- Tags ----
