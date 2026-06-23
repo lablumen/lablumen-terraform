@@ -54,5 +54,18 @@ module "karpenter" {
   version = "~> 20.24"
 
   cluster_name = module.eks.cluster_name
-  tags         = var.tags
+
+  # v1.0.x controller IAM permissions (matches the karpenter 1.0.6 chart deployed via ArgoCD).
+  enable_v1_permissions = true
+
+  # Use IRSA (OIDC) for the controller — consistent with every other addon (ESO, ALB, external-dns,
+  # services). The submodule defaults to EKS Pod Identity, but this cluster has no pod-identity agent
+  # or association, and the karpenter ServiceAccount is IRSA-annotated by kubernetes.tf.
+  enable_pod_identity             = false
+  create_pod_identity_association = false
+  enable_irsa                     = true
+  irsa_oidc_provider_arn          = module.eks.oidc_provider_arn
+  irsa_namespace_service_accounts = ["kube-system:karpenter"]
+
+  tags = var.tags
 }

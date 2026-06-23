@@ -158,15 +158,18 @@ resource "aws_iam_role" "frontend_deploy" {
 resource "aws_iam_role_policy" "frontend_deploy" {
   name = "${var.project}-frontend-deploy"
   role = aws_iam_role.frontend_deploy.id
+  # The cloudfront:CreateInvalidation statement is included only when a distribution ARN is provided
+  # (i.e. CloudFront is enabled); otherwise it is omitted so the policy stays valid + least-privilege.
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       { Effect = "Allow", Action = ["s3:ListBucket"], Resource = var.frontend_bucket_arn },
       { Effect = "Allow", Action = ["s3:PutObject", "s3:DeleteObject"], Resource = "${var.frontend_bucket_arn}/*" },
-      { Effect = "Allow", Action = ["cloudfront:CreateInvalidation"], Resource = var.cloudfront_distribution_arn },
       # Read deploy config (bucket/distribution/api-url/cognito) at runtime — single source of truth.
       { Effect = "Allow", Action = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"], Resource = "arn:aws:ssm:*:*:parameter/lablumen/config/*" },
-    ]
+      ], var.cloudfront_distribution_arn != null ? [
+      { Effect = "Allow", Action = ["cloudfront:CreateInvalidation"], Resource = var.cloudfront_distribution_arn },
+    ] : [])
   })
 }
 
@@ -203,7 +206,10 @@ resource "aws_iam_role_policy" "eso" {
     Version = "2012-10-17"
     Statement = [
       { Effect = "Allow", Action = ["secretsmanager:GetSecretValue"], Resource = "arn:aws:secretsmanager:*:*:secret:lablumen/app/*" },
-      { Effect = "Allow", Action = ["ssm:GetParameter", "ssm:GetParametersByPath"], Resource = "arn:aws:ssm:*:*:parameter/lablumen/config/*" },
+      { Effect = "Allow", Action = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"], Resource = "arn:aws:ssm:*:*:parameter/lablumen/config/*" },
+      # ESO dataFrom find-by-name discovers params via DescribeParameters, which IAM only allows on "*"
+      # (no resource-level scoping). Values are still readable only under /lablumen/config/* above.
+      { Effect = "Allow", Action = ["ssm:DescribeParameters"], Resource = "*" },
     ]
   })
 }

@@ -68,6 +68,7 @@ module "s3" {
 # ---------------------------------------------------------------------------
 module "cloudfront" {
   source = "./modules/cloudfront"
+  count  = var.enable_cloudfront ? 1 : 0
 
   name                                 = var.project
   aliases                              = [local.frontend_fqdn]
@@ -148,6 +149,11 @@ module "secretsmanager" {
   runtime_secrets = {
     "lablumen/app/database-url" = "Full Postgres DSN incl. creds for service pods + ai_lambda. Compose from module.rds endpoint + the RDS-managed master secret."
   }
+  # Non-prod: purge immediately on destroy (0) instead of a 7-day recovery window. The 7-day window
+  # blocks recreating a same-named secret, which trips re-applies on this frequently-rebuilt platform.
+  # This is a re-populatable shell (no value stored by Terraform), so immediate purge is safe.
+  secret_recovery_window_days = 0
+
   tags = local.common_tags
 }
 
@@ -157,7 +163,9 @@ module "secretsmanager" {
 module "ssm" {
   source = "./modules/ssm"
 
-  config = {
+  # cloudfront-distribution-id is only published when CloudFront is enabled (see var.enable_cloudfront);
+  # merging it conditionally keeps module.ssm independent of the CloudFront resource.
+  config = merge({
     "reports-bucket"        = module.s3.reports_bucket_id
     "sqs-url"               = module.sqs.queue_url
     "cognito-user-pool-id"  = module.cognito.user_pool_id
@@ -171,10 +179,11 @@ module "ssm" {
 
     # Frontend deploy discovery (single source of truth — the frontend-deploy CI job reads these at
     # runtime instead of duplicating them as GitHub variables).
-    "frontend-bucket"            = module.s3.frontend_bucket_id
-    "cloudfront-distribution-id" = module.cloudfront.distribution_id
-    "api-url"                    = "https://${local.api_fqdn}"
-  }
+    "frontend-bucket" = module.s3.frontend_bucket_id
+    "api-url"         = "https://${local.api_fqdn}"
+    }, var.enable_cloudfront ? {
+    "cloudfront-distribution-id" = module.cloudfront[0].distribution_id
+  } : {})
   tags = local.common_tags
 }
 
@@ -191,7 +200,7 @@ module "iam" {
   state_bucket_name           = local.state_bucket_name
   ecr_repository_arns         = values(module.ecr.repository_arns)
   frontend_bucket_arn         = module.s3.frontend_bucket_arn
-  cloudfront_distribution_arn = module.cloudfront.distribution_arn
+  cloudfront_distribution_arn = var.enable_cloudfront ? module.cloudfront[0].distribution_arn : null
 
   # EKS / IRSA
   oidc_provider_arn       = module.eks.oidc_provider_arn

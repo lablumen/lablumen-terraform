@@ -38,7 +38,8 @@ variable "frontend_bucket_arn" {
 
 variable "cloudfront_distribution_arn" {
   type        = string
-  description = "CloudFront distribution ARN (frontend-deploy CreateInvalidation scope)."
+  description = "CloudFront distribution ARN (frontend-deploy CreateInvalidation scope). Null when CloudFront is disabled — the invalidation statement is then omitted."
+  default     = null
 }
 
 # ---- EKS / IRSA ----

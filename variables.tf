@@ -171,6 +171,14 @@ variable "frontend_bucket_name" {
   default     = null
 }
 
+# ---- CloudFront / frontend hosting ----
+
+variable "enable_cloudfront" {
+  type        = bool
+  description = "Deploy the CloudFront SPA distribution + frontend hosting (and the cloudfront-distribution-id SSM param + frontend-deploy invalidation perm). NEW AWS accounts must be verified by AWS Support before CloudFront can be created — set false to bring up the rest of the platform first, then flip true once verified and re-apply (additive). See toggle-cloudfront.md."
+  default     = true
+}
+
 # ---- Lambda ----
 
 variable "enable_ai_lambda" {

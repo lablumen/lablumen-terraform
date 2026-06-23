@@ -45,13 +45,13 @@ output "frontend_bucket" {
 }
 
 output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID (for cache invalidation in the frontend deploy job)."
-  value       = module.cloudfront.distribution_id
+  description = "CloudFront distribution ID (for cache invalidation in the frontend deploy job). Null when enable_cloudfront = false."
+  value       = try(module.cloudfront[0].distribution_id, null)
 }
 
 output "cloudfront_domain_name" {
-  description = "CloudFront default domain name."
-  value       = module.cloudfront.distribution_domain_name
+  description = "CloudFront default domain name. Null when enable_cloudfront = false."
+  value       = try(module.cloudfront[0].distribution_domain_name, null)
 }
 
 output "frontend_url" {
