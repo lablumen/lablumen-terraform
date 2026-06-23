@@ -93,3 +93,6 @@ Plus a GitHub Environment named `production` with required reviewers.
 | `cluster_admin_access_entries` | `{}` | name→IAM ARN granted EKS cluster-admin (your bootstrap role). |
 | `environment` / `owner` | `shared` / `rnld101` | Tag values on every resource. |
 | `reports_bucket_name` / `frontend_bucket_name` | `*-change-me` | Must be globally unique. |
+
+
+##
