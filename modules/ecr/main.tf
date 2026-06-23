@@ -3,6 +3,8 @@ resource "aws_ecr_repository" "this" {
 
   name                 = each.value
   image_tag_mutability = "IMMUTABLE"
+  # Allow `terraform destroy` to remove repos that still contain images (non-prod teardown/rebuild).
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
