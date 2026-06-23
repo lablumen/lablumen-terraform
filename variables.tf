@@ -226,7 +226,7 @@ variable "github_org" {
 
 variable "state_bucket_name" {
   type        = string
-  description = "Optional override for the Terraform state bucket name (used to scope the tf-plan IAM policy). Leave null to derive <project>-tfstate-<account_id>, matching the bootstrap stack + backend.hcl."
+  description = "Optional override for the Terraform state bucket name (used to scope the tf-plan IAM policy). Leave null to derive <project>-tfstate-<account_id>, matching the bootstrap stack + backend.tf."
   default     = null
 }
 

@@ -11,6 +11,6 @@ variable "project" {
 
 variable "state_bucket_name" {
   type        = string
-  description = "Optional override for the state bucket name. Leave null to derive <project>-tfstate-<account_id>. Whatever this resolves to is what you put in ../backend.hcl."
+  description = "Optional override for the state bucket name. Leave null to derive <project>-tfstate-<account_id>. Whatever this resolves to is what you put in ../backend.tf `bucket`."
   default     = null
 }

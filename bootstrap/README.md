@@ -11,15 +11,15 @@ is needed; the lock is a short-lived `<key>.tflock` object in this same bucket.
 
 ```bash
 # 1. Create the state backend bucket (local state, one time). The name is DERIVED:
-#    <project>-tfstate-<account_id>, so it is globally unique and account-portable.
+#    <project>-tfstate-<account_id>, so it is globally unique with no manual naming.
 cd bootstrap
 terraform init
 terraform apply                       # creates the state bucket
-terraform output -raw backend_hcl > ../backend.hcl   # ready-to-use partial backend config
+terraform output -raw state_bucket    # <- copy this name into ../backend.tf `bucket`
 cd ..
 
-# 2. Point the root config at that bucket (PARTIAL backend config — no literals in ../backend.tf)
-terraform init -backend-config=backend.hcl
+# 2. Init the root config against that bucket (no args — backend.tf holds the literal)
+terraform init
 ```
 
 After step 2, all root state lives in S3 with native locking. Subsequent `terraform` runs from
@@ -27,13 +27,13 @@ After step 2, all root state lives in S3 with native locking. Subsequent `terraf
 
 ## Notes
 
-- `../backend.tf` is a **partial** backend (`backend "s3" {}` — empty). The bucket name and other
-  values come from `../backend.hcl` at `init` time, because Terraform evaluates the backend block
-  before variables/locals are available. `backend.hcl` is gitignored; `backend.hcl.example` is the template.
-- The bucket name is **derived** from the account ID here (`<project>-tfstate-<account_id>`), so it is
-  globally unique with no manual naming. Set `state_bucket_name` to override.
+- `../backend.tf` holds the bucket name as a **literal** (Terraform evaluates the backend block before
+  variables/locals exist). The bootstrap stack **derives** the same name from the account ID
+  (`<project>-tfstate-<account_id>`) — keep `../backend.tf` `bucket` equal to `terraform output -raw
+  state_bucket`. On a new account, update that one line.
+- Set `state_bucket_name` here to override the derived name.
 - This is a **create-once** stack; it is not part of the normal plan/apply loop.
-- A new account just repeats steps 1–2 — no code edits.
+- A new account repeats steps 1–2 (and the one-line `backend.tf` update).
 
 ## Migrating off DynamoDB (if you bootstrapped earlier)
 

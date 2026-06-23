@@ -8,8 +8,7 @@ one Terraform module per AWS service.
 
 ```
 .
-├── backend.tf            # PARTIAL S3 backend (empty block) — values supplied via backend.hcl at init
-├── backend.hcl.example   # template for the per-account backend.hcl (gitignored; state bucket name)
+├── backend.tf            # S3 remote state + S3-native locking (bucket literal; created by bootstrap/)
 ├── providers.tf          # aws (default_tags) + kubernetes (EKS exec auth)
 ├── versions.tf           # terraform >=1.6; aws ~>5.60; kubernetes ~>2.31
 ├── data.tf               # LOOKUPS ONLY: existing Route53 hosted zone + ACM cert (never created)
@@ -46,12 +45,13 @@ one Terraform module per AWS service.
   report-service & notification-service in both prod and dev).
 
 ## Account portability
-This config is **account-agnostic**. Nothing account-specific is hardcoded: the account ID is
-discovered via `data.aws_caller_identity`, and the **S3 bucket names** (state / reports / frontend) and
-the **ECR registry URL** are derived as `<project>-<purpose>-<account_id>` in `locals.tf`. To stand the
-whole platform up in a fresh account you only: (1) point credentials at it, (2) supply the one-line
-`backend.hcl`, and (3) ensure the domain foundation (zone + ISSUED cert) exists. See
-`extras/account-portability-plan.md`.
+This config is **account-aware with minimal per-account edits**. The account ID is discovered via
+`data.aws_caller_identity`, and the **reports/frontend bucket names** + **ECR registry URL** are derived
+as `<project>-<purpose>-<account_id>` in `locals.tf`. The only per-account code edits are the
+**`backend.tf` `bucket` literal** (Terraform can't derive backend values) and, in `lablumen-k8s`, the
+one `global-values.yaml` registry line. To stand the platform up in a fresh account: (1) point
+credentials at it, (2) bootstrap + set those two literals, (3) ensure the domain foundation (zone +
+ISSUED cert) exists. See `extras/account-portability-plan.md`.
 
 ## Prerequisites
 - AWS account + admin credentials for the one-time bootstrap.
@@ -65,11 +65,11 @@ whole platform up in a fresh account you only: (1) point credentials at it, (2) 
 ```bash
 # 1. One-time: create the derived state bucket (local state). Locking is S3-native (no DynamoDB).
 cd bootstrap && terraform init && terraform apply
-terraform output -raw backend_hcl > ../backend.hcl     # writes the per-account backend config
+terraform output -raw state_bucket     # copy this into ../backend.tf `bucket` (one-line, per account)
 cd ..
 
-# 2. Init against that bucket (partial backend) and apply (domain_name comes from terraform.tfvars)
-terraform init -backend-config=backend.hcl
+# 2. Init against that bucket and apply (domain_name comes from terraform.tfvars)
+terraform init
 terraform fmt -check -recursive && terraform validate
 terraform apply
 ```
@@ -87,15 +87,14 @@ takes over (subsequent changes flow through the pipelines automatically).
 |---|---|
 | `AWS_ACCOUNT_ID` | the 12-digit target account ID |
 
-The pipeline constructs everything else from `AWS_ACCOUNT_ID`: the role ARNs
-(`…:role/lablumen-tf-plan` / `…-tf-apply`) and the partial-backend state bucket
-(`lablumen-tfstate-<account_id>`, passed via `-backend-config`). `domain_name` lives in
+The pipeline constructs the role ARNs from `AWS_ACCOUNT_ID` (`…:role/lablumen-tf-plan` / `…-tf-apply`);
+the state bucket comes from the literal in `backend.tf` (plain `terraform init`). `domain_name` lives in
 `terraform.tfvars`, so no `DOMAIN_NAME` variable is needed.
 
 Plus a GitHub Environment named `production` with required reviewers.
 
 > Chicken-and-egg: the OIDC roles are created by Terraform, so the very first apply runs locally
-> (with `terraform init -backend-config=backend.hcl`); thereafter the pipeline uses the roles. The
+> (plain `terraform init` against the `backend.tf` bucket); thereafter the pipeline uses the roles. The
 > app/frontend pipelines likewise construct their role ARNs from `AWS_ACCOUNT_ID`.
 
 ## Key variables
@@ -107,7 +106,7 @@ Plus a GitHub Environment named `production` with required reviewers.
 | `cluster_admin_access_entries` | `{}` | name→IAM ARN granted EKS cluster-admin (your bootstrap role). |
 | `environment` / `owner` | `shared` / `rnld101` | Tag values on every resource. |
 | `reports_bucket_name` / `frontend_bucket_name` | `null` (derived) | Optional override; defaults to `<project>-<purpose>-<account_id>` (globally unique). |
-| `state_bucket_name` | `null` (derived) | Optional override; defaults to `<project>-tfstate-<account_id>` (matches `bootstrap/` + `backend.hcl`). |
+| `state_bucket_name` | `null` (derived) | Optional override for the tf-plan IAM policy scope; defaults to `<project>-tfstate-<account_id>` (keep `backend.tf` `bucket` equal to this). |
 
 
 ##

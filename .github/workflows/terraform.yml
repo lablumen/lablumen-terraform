@@ -63,14 +63,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - run: terraform fmt -check -recursive
-      - name: Terraform init (partial backend; state bucket derived from account id)
-        run: |
-          terraform init -input=false \
-            -backend-config="bucket=lablumen-tfstate-${{ vars.AWS_ACCOUNT_ID }}" \
-            -backend-config="key=global/terraform.tfstate" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="use_lockfile=true" \
-            -backend-config="encrypt=true"
+      - run: terraform init -input=false
       - run: terraform validate
       - name: Terraform plan
         run: terraform plan -input=false -no-color -out=tfplan
@@ -101,14 +94,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform init (partial backend; state bucket derived from account id)
-        run: |
-          terraform init -input=false \
-            -backend-config="bucket=lablumen-tfstate-${{ vars.AWS_ACCOUNT_ID }}" \
-            -backend-config="key=global/terraform.tfstate" \
-            -backend-config="region=${{ env.AWS_REGION }}" \
-            -backend-config="use_lockfile=true" \
-            -backend-config="encrypt=true"
+      - run: terraform init -input=false
 
       - name: Download plan artifact
         uses: actions/download-artifact@v4
