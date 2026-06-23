@@ -18,7 +18,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  TF_VERSION: "1.9.8"
+  TF_VERSION: "1.15.5"   # >=1.10 required for the S3 backend `use_lockfile` (native state locking)
 
 jobs:
   destroy:
