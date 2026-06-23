@@ -1,0 +1,45 @@
+name: terraform-destroy
+
+# DANGER: tears down ALL Terraform-managed infrastructure. Manual-only, with three safety layers:
+#   1. workflow_dispatch (never runs automatically)
+#   2. a typed confirmation input (must equal "destroy")
+#   3. the `production` GitHub Environment (required-reviewer approval)
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to confirm tearing down ALL infrastructure'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write          # OIDC federation to AWS (no static keys)
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.9.8"
+
+jobs:
+  destroy:
+    # Guard: only proceed if the operator typed exactly "destroy".
+    if: ${{ inputs.confirm == 'destroy' }}
+    runs-on: ubuntu-latest
+    environment: production   # required-reviewer approval = the manual gate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (tf-apply, admin)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/lablumen-tf-apply
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - run: terraform init -input=false
+
+      - name: Terraform destroy
+        run: terraform destroy -input=false -auto-approve -no-color
