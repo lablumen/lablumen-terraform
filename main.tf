@@ -147,7 +147,8 @@ module "secretsmanager" {
   source = "./modules/secretsmanager"
 
   runtime_secrets = {
-    "lablumen/app/database-url" = "Full Postgres DSN incl. creds for service pods + ai_lambda. Compose from module.rds endpoint + the RDS-managed master secret."
+    "lablumen/app/database-url"  = "Full Postgres DSN incl. creds for service pods + ai_lambda. Compose from module.rds endpoint + the RDS-managed master secret."
+    "lablumen/app/grafana-admin" = "Grafana admin creds as JSON {\"admin-user\":\"admin\",\"admin-password\":\"...\"}. Hand-populated; ESO syncs it into the monitoring namespace as the grafana-admin Secret."
   }
   # Non-prod: purge immediately on destroy (0) instead of a 7-day recovery window. The 7-day window
   # blocks recreating a same-named secret, which trips re-applies on this frequently-rebuilt platform.
