@@ -1,7 +1,9 @@
 locals {
-  oidc_issuer      = replace(var.cluster_oidc_issuer_url, "https://", "")
-  repo_terraform   = "repo:${var.github_org}/${var.terraform_repo}"
-  repo_app         = "repo:${var.github_org}/${var.app_repo}"
+  oidc_issuer    = replace(var.cluster_oidc_issuer_url, "https://", "")
+  repo_terraform = "repo:${var.github_org}/${var.terraform_repo}"
+  # OIDC `sub` allow-lists for the per-service repos (polyrepo).
+  app_service_subs = [for r in var.app_service_repos : "repo:${var.github_org}/${r}:*"]
+  frontend_sub     = "repo:${var.github_org}/${var.frontend_repo}:*"
   state_bucket_arn = "arn:aws:s3:::${var.state_bucket_name}"
 }
 
@@ -104,7 +106,7 @@ resource "aws_iam_role" "app_ci_ecr" {
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "${local.repo_app}:*" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = local.app_service_subs }
       }
     }]
   })
@@ -147,7 +149,7 @@ resource "aws_iam_role" "frontend_deploy" {
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
-        StringLike   = { "token.actions.githubusercontent.com:sub" = "${local.repo_app}:*" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = local.frontend_sub }
       }
     }]
   })

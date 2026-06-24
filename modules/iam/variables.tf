@@ -15,10 +15,20 @@ variable "terraform_repo" {
   default     = "lablumen-terraform"
 }
 
-variable "app_repo" {
+variable "app_service_repos" {
+  type        = list(string)
+  description = "Backend service repos allowed to assume the app-ci-ecr role (push images)."
+  default = [
+    "lablumen-appointment-service",
+    "lablumen-report-service",
+    "lablumen-notification-service",
+  ]
+}
+
+variable "frontend_repo" {
   type        = string
-  description = "Name of the application repo (for the app-ci-ecr / frontend-deploy trust policies)."
-  default     = "lablumen-app"
+  description = "Frontend repo allowed to assume the frontend-deploy role."
+  default     = "lablumen-frontend"
 }
 
 variable "state_bucket_name" {
