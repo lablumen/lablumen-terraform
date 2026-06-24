@@ -1,9 +1,14 @@
 name: terraform-destroy
 
-# DANGER: tears down ALL Terraform-managed infrastructure. Manual-only, with three safety layers:
-#   1. workflow_dispatch (never runs automatically)
-#   2. a typed confirmation input (must equal "destroy")
-#   3. the `production` GitHub Environment (required-reviewer approval)
+# DANGER: tears down ALL infrastructure. Single workflow_dispatch, two phases in one job:
+#   Phase 1 (Kubernetes): halt ArgoCD so it stops reconciling, then delete the resources whose AWS
+#           objects are created by in-cluster controllers (Ingress->ALB via the LB controller,
+#           type=LoadBalancer Services, Karpenter nodes) so those controllers clean them up FIRST.
+#           Otherwise their orphaned ENIs/ALBs block the VPC/subnet destroy.
+#   Phase 2 (Terraform): terraform destroy the AWS infra.
+# Safety: workflow_dispatch only + a typed "destroy" confirmation + the `production` environment
+# (required-reviewer approval). The tf-apply role has EKS cluster-admin (aws_eks_access_entry.tf_apply)
+# so it can run kubectl + delete the kubernetes_* resources.
 on:
   workflow_dispatch:
     inputs:
@@ -14,27 +19,58 @@ on:
 
 permissions:
   contents: read
-  id-token: write          # OIDC federation to AWS (no static keys)
+  id-token: write
 
 env:
   AWS_REGION: us-east-1
-  TF_VERSION: "1.15.5"   # >=1.10 required for the S3 backend `use_lockfile` (native state locking)
+  TF_VERSION: "1.15.5"
+  CLUSTER: lablumen-eks
 
 jobs:
   destroy:
-    # Guard: only proceed if the operator typed exactly "destroy".
     if: ${{ inputs.confirm == 'destroy' }}
     runs-on: ubuntu-latest
     environment: production   # required-reviewer approval = the manual gate
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (tf-apply, admin)
+      - name: Configure AWS credentials (tf-apply, admin + EKS cluster-admin)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/lablumen-tf-apply
           aws-region: ${{ env.AWS_REGION }}
 
+      - uses: azure/setup-kubectl@v4
+
+      # ---- Phase 1: tear down the Kubernetes layer (controllers clean up their AWS resources) ----
+      - name: Kubernetes teardown (only if the cluster still exists)
+        run: |
+          set -uo pipefail
+          if ! aws eks describe-cluster --name "$CLUSTER" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "Cluster $CLUSTER not found — skipping k8s teardown."; exit 0
+          fi
+          aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION"
+
+          echo "==> Halt ArgoCD so it stops re-creating what we delete"
+          kubectl -n argocd scale statefulset/argocd-application-controller --replicas=0 2>/dev/null || true
+
+          echo "==> Delete Ingresses (LB controller removes the ALBs via finalizers) + LB Services"
+          kubectl delete ingress --all --all-namespaces --ignore-not-found --timeout=300s || true
+          kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer --ignore-not-found --timeout=300s || true
+
+          echo "==> Delete Karpenter nodes (terminate any controller-provisioned EC2)"
+          kubectl delete nodeclaims.karpenter.sh --all --ignore-not-found --timeout=300s || true
+          kubectl delete nodepools.karpenter.sh --all --ignore-not-found || true
+
+          echo "==> Wait for controller-managed ALBs to drain"
+          for i in $(seq 1 40); do
+            n=$(aws elbv2 describe-load-balancers --region "$AWS_REGION" \
+                  --query "length(LoadBalancers[?contains(LoadBalancerName,'k8s-lablumen')])" --output text 2>/dev/null || echo 0)
+            [ "$n" = "0" ] && { echo "ALBs drained."; break; }
+            echo "  $n ALB(s) remaining... ($i/40)"; sleep 15
+          done
+
+      # ---- Phase 2: destroy the AWS infrastructure ----
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}

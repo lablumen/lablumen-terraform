@@ -213,3 +213,28 @@ module "iam" {
 
   tags = local.common_tags
 }
+
+# ---------------------------------------------------------------------------
+# EKS access for the CI tf-apply role — Kubernetes cluster-admin (RBAC), SEPARATE from its AWS IAM
+# admin. Lets the pipeline manage the kubernetes_* resources AND run the kubectl teardown in the
+# destroy workflow. Standalone resource (depends on both module.eks + module.iam) to avoid a module
+# dependency cycle. The cluster creator (whoever runs the first apply) already gets admin via
+# enable_cluster_creator_admin_permissions, so this adds tf-apply without conflicting.
+# ---------------------------------------------------------------------------
+resource "aws_eks_access_entry" "tf_apply" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = module.iam.tf_apply_role_arn
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "tf_apply_admin" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = module.iam.tf_apply_role_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.tf_apply]
+}
