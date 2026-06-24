@@ -27,17 +27,17 @@ locals {
 # ---- Namespaces ------------------------------------------------------------------
 resource "kubernetes_namespace" "external_secrets" {
   metadata { name = "external-secrets" }
-  depends_on = [module.eks]
+  depends_on = [module.eks, aws_eks_access_policy_association.tf_apply_admin]
 }
 
 resource "kubernetes_namespace" "lablumen" {
   metadata { name = "lablumen" }
-  depends_on = [module.eks]
+  depends_on = [module.eks, aws_eks_access_policy_association.tf_apply_admin]
 }
 
 resource "kubernetes_namespace" "lablumen_dev" {
   metadata { name = "lablumen-dev" }
-  depends_on = [module.eks]
+  depends_on = [module.eks, aws_eks_access_policy_association.tf_apply_admin]
 }
 
 # ---- Cluster controllers (kube-system / external-secrets) -------------------------
@@ -59,7 +59,7 @@ resource "kubernetes_service_account" "karpenter" {
       "eks.amazonaws.com/role-arn" = module.eks.karpenter_controller_role_arn
     }
   }
-  depends_on = [module.eks]
+  depends_on = [module.eks, aws_eks_access_policy_association.tf_apply_admin]
 }
 
 resource "kubernetes_service_account" "lbc" {
@@ -70,7 +70,7 @@ resource "kubernetes_service_account" "lbc" {
       "eks.amazonaws.com/role-arn" = module.iam.lbc_irsa_role_arn
     }
   }
-  depends_on = [module.eks]
+  depends_on = [module.eks, aws_eks_access_policy_association.tf_apply_admin]
 }
 
 resource "kubernetes_service_account" "external_dns" {
@@ -81,7 +81,7 @@ resource "kubernetes_service_account" "external_dns" {
       "eks.amazonaws.com/role-arn" = module.iam.external_dns_role_arn
     }
   }
-  depends_on = [module.eks]
+  depends_on = [module.eks, aws_eks_access_policy_association.tf_apply_admin]
 }
 
 # ---- App-tier ServiceAccounts (report + notification, in prod AND dev) ------------
