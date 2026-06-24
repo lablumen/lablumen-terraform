@@ -2,8 +2,8 @@
 # We only look them up by name/domain and create records dynamically — nothing here creates a zone
 # or a certificate.
 #
-# Prerequisite: the ACM certificate must be ISSUED (validation complete) before apply, since CloudFront
-# attaches it. The cert must live in us-east-1 (CloudFront requirement) — which is var.aws_region here.
+# Prerequisite: the ACM certificate must be ISSUED (validation complete) before apply.
+# The cert is used for HTTPS termination on the ALB (attached via k8s ingress annotation).
 
 # The account ID is DISCOVERED from the active credentials (never hardcoded). It drives globally-unique
 # bucket names and the ECR registry URL, so the same code is portable across AWS accounts.

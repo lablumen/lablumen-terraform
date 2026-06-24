@@ -36,20 +36,14 @@ variable "state_bucket_name" {
   description = "S3 bucket holding Terraform state (granted to the tf-plan role; S3-native locking)."
 }
 
-variable "ecr_repository_arns" {
+variable "backend_ecr_repository_arns" {
   type        = list(string)
-  description = "ECR repository ARNs the app CI role may push to."
+  description = "ECR repository ARNs for backend services (appointment/report/notification). Scopes the app_ci_ecr push policy."
 }
 
-variable "frontend_bucket_arn" {
+variable "frontend_ecr_repository_arn" {
   type        = string
-  description = "Frontend S3 bucket ARN (granted to the frontend-deploy role)."
-}
-
-variable "cloudfront_distribution_arn" {
-  type        = string
-  description = "CloudFront distribution ARN (frontend-deploy CreateInvalidation scope). Null when CloudFront is disabled — the invalidation statement is then omitted."
-  default     = null
+  description = "ECR repository ARN for lablumen/frontend exclusively. Scopes the frontend_build push policy."
 }
 
 # ---- EKS / IRSA ----

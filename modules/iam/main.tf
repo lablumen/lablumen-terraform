@@ -131,15 +131,15 @@ resource "aws_iam_role_policy" "app_ci_ecr" {
           "ecr:PutImage",
           "ecr:BatchGetImage",
         ]
-        Resource = var.ecr_repository_arns
+        Resource = var.backend_ecr_repository_arns
       },
     ]
   })
 }
 
-# ---- Role: frontend deploy → S3 sync + CloudFront invalidation ---------------------
-resource "aws_iam_role" "frontend_deploy" {
-  name = "${var.project}-frontend-deploy"
+# ---- Role: frontend build → push image to ECR (frontend repo only) -----------------
+resource "aws_iam_role" "frontend_build" {
+  name = "${var.project}-frontend-build"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -157,21 +157,26 @@ resource "aws_iam_role" "frontend_deploy" {
   tags = var.tags
 }
 
-resource "aws_iam_role_policy" "frontend_deploy" {
-  name = "${var.project}-frontend-deploy"
-  role = aws_iam_role.frontend_deploy.id
-  # The cloudfront:CreateInvalidation statement is included only when a distribution ARN is provided
-  # (i.e. CloudFront is enabled); otherwise it is omitted so the policy stays valid + least-privilege.
+resource "aws_iam_role_policy" "frontend_build" {
+  name = "${var.project}-frontend-build"
+  role = aws_iam_role.frontend_build.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = concat([
-      { Effect = "Allow", Action = ["s3:ListBucket"], Resource = var.frontend_bucket_arn },
-      { Effect = "Allow", Action = ["s3:PutObject", "s3:DeleteObject"], Resource = "${var.frontend_bucket_arn}/*" },
-      # Read deploy config (bucket/distribution/api-url/cognito) at runtime — single source of truth.
-      { Effect = "Allow", Action = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"], Resource = "arn:aws:ssm:*:*:parameter/lablumen/config/*" },
-      ], var.cloudfront_distribution_arn != null ? [
-      { Effect = "Allow", Action = ["cloudfront:CreateInvalidation"], Resource = var.cloudfront_distribution_arn },
-    ] : [])
+    Statement = [
+      { Effect = "Allow", Action = ["ecr:GetAuthorizationToken"], Resource = "*" },
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage",
+          "ecr:BatchGetImage",
+        ]
+        Resource = var.frontend_ecr_repository_arn
+      },
+    ]
   })
 }
 

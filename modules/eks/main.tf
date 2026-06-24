@@ -55,6 +55,11 @@ module "karpenter" {
 
   cluster_name = module.eks.cluster_name
 
+  # Deterministic name so ec2nodeclass.yaml never needs updating after a re-apply.
+  # Format: KarpenterNodeRole-<cluster_name>
+  node_iam_role_name            = "KarpenterNodeRole-${var.cluster_name}"
+  node_iam_role_use_name_prefix = false
+
   # v1.0.x controller IAM permissions (matches the karpenter 1.0.6 chart deployed via ArgoCD).
   enable_v1_permissions = true
 

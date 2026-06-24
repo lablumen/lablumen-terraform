@@ -1,6 +1,6 @@
 variable "aws_region" {
   type        = string
-  description = "AWS region to deploy all resources into. Must be us-east-1 for the CloudFront ACM cert."
+  description = "AWS region to deploy all resources into."
   default     = "us-east-1"
 }
 
@@ -39,7 +39,7 @@ variable "acm_certificate_domain" {
 
 variable "frontend_subdomain" {
   type        = string
-  description = "Subdomain for the frontend SPA (CloudFront). Result: <frontend_subdomain>.<domain_name>."
+  description = "Subdomain for the frontend (k8s ALB ingress). Result: <frontend_subdomain>.<domain_name>."
   default     = "app"
 }
 
@@ -165,20 +165,6 @@ variable "reports_bucket_name" {
   default     = null
 }
 
-variable "frontend_bucket_name" {
-  type        = string
-  description = "Optional override for the frontend SPA S3 bucket name. Leave null to derive a globally-unique name: <project>-frontend-<account_id>."
-  default     = null
-}
-
-# ---- CloudFront / frontend hosting ----
-
-variable "enable_cloudfront" {
-  type        = bool
-  description = "Deploy the CloudFront SPA distribution + frontend hosting (and the cloudfront-distribution-id SSM param + frontend-deploy invalidation perm). NEW AWS accounts must be verified by AWS Support before CloudFront can be created — set false to bring up the rest of the platform first, then flip true once verified and re-apply (additive). See toggle-cloudfront.md."
-  default     = true
-}
-
 # ---- Lambda ----
 
 variable "enable_ai_lambda" {
@@ -209,11 +195,12 @@ variable "ses_from_local_part" {
 
 variable "ecr_repositories" {
   type        = list(string)
-  description = "ECR repository names to create. Frontend is static-hosted (S3/CloudFront), so it is NOT an ECR repo."
+  description = "ECR repository names to create. Frontend runs as a container on EKS so it has its own ECR repo."
   default = [
     "lablumen/appointment-service",
     "lablumen/report-service",
     "lablumen/notification-service",
+    "lablumen/frontend",
   ]
 }
 

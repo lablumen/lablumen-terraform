@@ -53,31 +53,13 @@ module "rds" {
 }
 
 # ---------------------------------------------------------------------------
-# S3 — reports bucket (KMS) + frontend SPA bucket (private, CloudFront OAC)
+# S3 — reports bucket (KMS encrypted, versioned, private PHI store)
 # ---------------------------------------------------------------------------
 module "s3" {
   source = "./modules/s3"
 
-  reports_bucket_name  = local.reports_bucket_name
-  frontend_bucket_name = local.frontend_bucket_name
-  tags                 = local.common_tags
-}
-
-# ---------------------------------------------------------------------------
-# CloudFront — SPA distribution (OAC → frontend bucket) + Route53 alias record
-# ---------------------------------------------------------------------------
-module "cloudfront" {
-  source = "./modules/cloudfront"
-  count  = var.enable_cloudfront ? 1 : 0
-
-  name                                 = var.project
-  aliases                              = [local.frontend_fqdn]
-  frontend_bucket_id                   = module.s3.frontend_bucket_id
-  frontend_bucket_arn                  = module.s3.frontend_bucket_arn
-  frontend_bucket_regional_domain_name = module.s3.frontend_bucket_regional_domain_name
-  acm_certificate_arn                  = data.aws_acm_certificate.primary.arn
-  route53_zone_id                      = data.aws_route53_zone.primary.zone_id
-  tags                                 = local.common_tags
+  reports_bucket_name = local.reports_bucket_name
+  tags                = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
@@ -164,9 +146,7 @@ module "secretsmanager" {
 module "ssm" {
   source = "./modules/ssm"
 
-  # cloudfront-distribution-id is only published when CloudFront is enabled (see var.enable_cloudfront);
-  # merging it conditionally keeps module.ssm independent of the CloudFront resource.
-  config = merge({
+  config = {
     "reports-bucket"        = module.s3.reports_bucket_id
     "sqs-url"               = module.sqs.queue_url
     "cognito-user-pool-id"  = module.cognito.user_pool_id
@@ -177,14 +157,8 @@ module "ssm" {
     "region"                = var.aws_region
     "presigned-url-ttl"     = "3600"
     "cors-origins"          = "https://${local.frontend_fqdn},http://localhost:5173"
-
-    # Frontend deploy discovery (single source of truth — the frontend-deploy CI job reads these at
-    # runtime instead of duplicating them as GitHub variables).
-    "frontend-bucket" = module.s3.frontend_bucket_id
-    "api-url"         = "https://${local.api_fqdn}"
-    }, var.enable_cloudfront ? {
-    "cloudfront-distribution-id" = module.cloudfront[0].distribution_id
-  } : {})
+    "api-url"               = "https://${local.api_fqdn}"
+  }
   tags = local.common_tags
 }
 
@@ -199,9 +173,8 @@ module "iam" {
   # CI/CD identity
   github_org                  = var.github_org
   state_bucket_name           = local.state_bucket_name
-  ecr_repository_arns         = values(module.ecr.repository_arns)
-  frontend_bucket_arn         = module.s3.frontend_bucket_arn
-  cloudfront_distribution_arn = var.enable_cloudfront ? module.cloudfront[0].distribution_arn : null
+  backend_ecr_repository_arns = [for name, arn in module.ecr.repository_arns : arn if name != "lablumen/frontend"]
+  frontend_ecr_repository_arn = module.ecr.repository_arns["lablumen/frontend"]
 
   # EKS / IRSA
   oidc_provider_arn       = module.eks.oidc_provider_arn

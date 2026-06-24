@@ -34,11 +34,6 @@ db_instance_class = "db.t4g.micro"
 # global uniqueness and account portability — see locals.tf. Override the *_bucket_name vars only if
 # you need a specific name.
 
-# TEMP: CloudFront is OFF because account 261523981519 is a brand-new AWS account that must be verified
-# by AWS Support before CloudFront resources can be created. This unblocks the backend (EKS/CI/CD/ArgoCD)
-# now. Flip to true and re-apply once AWS confirms verification. See toggle-cloudfront.md.
-enable_cloudfront = false
-
 notifications_queue_name = "lablumen-notifications"
 user_pool_name           = "lablumen-users"
 
@@ -47,9 +42,9 @@ user_pool_name           = "lablumen-users"
 # in Route53). You set only the local part here → result: no-reply@<your-domain>.
 ses_from_local_part = "no-reply"
 
-# Frontend is static-hosted via S3 + CloudFront — it is NOT an ECR repo.
 ecr_repositories = [
   "lablumen/appointment-service",
   "lablumen/report-service",
   "lablumen/notification-service",
+  "lablumen/frontend",
 ]

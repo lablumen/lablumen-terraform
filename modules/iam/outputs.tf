@@ -14,9 +14,9 @@ output "app_ci_ecr_role_arn" {
   description = "Assume in the app CI build/push job."
 }
 
-output "frontend_deploy_role_arn" {
-  value       = aws_iam_role.frontend_deploy.arn
-  description = "Assume in the frontend deploy job."
+output "frontend_build_role_arn" {
+  value       = aws_iam_role.frontend_build.arn
+  description = "Assume in the frontend CI build/push job (lablumen-frontend repo, OIDC)."
 }
 
 output "github_oidc_provider_arn" {

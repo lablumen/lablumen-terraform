@@ -20,6 +20,11 @@ output "rds_master_user_secret_arn" {
   value       = module.rds.master_user_secret_arn
 }
 
+output "database_url_template" {
+  description = "Correct DSN to paste into lablumen/app/database-url (replace <PASSWORD> with the password from rds_master_user_secret_arn). The +asyncpg driver prefix and single :5432 port are required."
+  value       = "postgresql+asyncpg://lablumen:<PASSWORD>@${module.rds.db_endpoint}/lablumen"
+}
+
 output "reports_bucket" {
   description = "S3 bucket name for report PDFs."
   value       = module.s3.reports_bucket_id
@@ -39,23 +44,8 @@ output "cognito_app_client_id" {
 }
 
 # ---- Frontend / DNS ----
-output "frontend_bucket" {
-  description = "S3 bucket for the frontend SPA (target of `aws s3 sync` in the frontend deploy job)."
-  value       = module.s3.frontend_bucket_id
-}
-
-output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID (for cache invalidation in the frontend deploy job). Null when enable_cloudfront = false."
-  value       = try(module.cloudfront[0].distribution_id, null)
-}
-
-output "cloudfront_domain_name" {
-  description = "CloudFront default domain name. Null when enable_cloudfront = false."
-  value       = try(module.cloudfront[0].distribution_domain_name, null)
-}
-
 output "frontend_url" {
-  description = "Public HTTPS URL of the frontend SPA."
+  description = "Public HTTPS URL of the frontend (served by nginx on EKS via ALB ingress)."
   value       = "https://${local.frontend_fqdn}"
 }
 
@@ -132,6 +122,7 @@ output "app_ci_ecr_role_arn" {
   value = module.iam.app_ci_ecr_role_arn
 }
 
-output "frontend_deploy_role_arn" {
-  value = module.iam.frontend_deploy_role_arn
+output "frontend_build_role_arn" {
+  description = "IAM role ARN assumed by the lablumen-frontend CI to push images to ECR."
+  value       = module.iam.frontend_build_role_arn
 }
