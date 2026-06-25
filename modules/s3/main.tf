@@ -47,3 +47,9 @@ module "sam_artifacts_bucket" {
 
   tags = var.tags
 }
+
+resource "aws_s3_bucket_notification" "reports" {
+  bucket      = module.reports_bucket.s3_bucket_id
+  eventbridge = true
+}
+

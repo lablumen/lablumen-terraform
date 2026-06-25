@@ -461,6 +461,15 @@ resource "aws_iam_role_policy" "ai_lambda_deploy" {
       { Effect = "Allow", Action = ["lambda:GetPolicy"], Resource = "arn:aws:lambda:*:*:function:lablumen-ai*" },
       # Logs — CloudFormation creates/manages the log group
       { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:DescribeLogGroups", "logs:PutRetentionPolicy", "logs:DeleteLogGroup"], Resource = "arn:aws:logs:*:*:log-group:/aws/lambda/lablumen-ai*" },
+      # EventBridge — SAM creates EventBridge rules to route S3 event notification to Lambda
+      {
+        Effect = "Allow"
+        Action = [
+          "events:PutRule", "events:DeleteRule", "events:DescribeRule",
+          "events:PutTargets", "events:RemoveTargets"
+        ]
+        Resource = "arn:aws:events:*:*:rule/lablumen-ai-*"
+      },
     ]
   })
 }
