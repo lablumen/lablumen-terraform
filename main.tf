@@ -342,3 +342,23 @@ resource "aws_eks_access_policy_association" "tf_plan_admin" {
   depends_on = [aws_eks_access_entry.tf_plan]
 }
 
+# EKS access for the human admin user (previously automatic, now explicitly declared)
+resource "aws_eks_access_entry" "admin_user" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = "arn:aws:iam::${local.account_id}:user/lablumen-admin"
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "admin_user_admin" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = "arn:aws:iam::${local.account_id}:user/lablumen-admin"
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.admin_user]
+}
+
+

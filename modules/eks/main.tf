@@ -10,7 +10,7 @@ module "eks" {
   # Access Entries (modern auth). The apply principal (tf-apply role) gets admin automatically;
   # additional human/role admins are granted via var.cluster_admin_access_entries.
   authentication_mode                      = "API"
-  enable_cluster_creator_admin_permissions = true
+  enable_cluster_creator_admin_permissions = false
 
   access_entries = {
     for name, arn in var.cluster_admin_access_entries : name => {
