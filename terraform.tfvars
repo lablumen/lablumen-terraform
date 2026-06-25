@@ -48,3 +48,5 @@ ecr_repositories = [
   "lablumen/notification-service",
   "lablumen/frontend",
 ]
+
+#
