@@ -434,6 +434,7 @@ resource "aws_iam_role_policy" "ai_lambda_deploy" {
       # CloudFormation — SAM uses it to create/update the lablumen-ai stack
       { Effect = "Allow", Action = ["cloudformation:*"], Resource = "arn:aws:cloudformation:*:*:stack/lablumen-ai*" },
       { Effect = "Allow", Action = ["cloudformation:ValidateTemplate"], Resource = "*" },
+      { Effect = "Allow", Action = ["cloudformation:CreateChangeSet"], Resource = "arn:aws:cloudformation:*:aws:transform/Serverless-2016-10-31" },
       # Lambda — update function code and config on redeploy
       {
         Effect = "Allow"
