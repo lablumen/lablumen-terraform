@@ -58,25 +58,122 @@ module "rds" {
 module "s3" {
   source = "./modules/s3"
 
-  reports_bucket_name = local.reports_bucket_name
-  tags                = local.common_tags
+  reports_bucket_name       = local.reports_bucket_name
+  sam_artifacts_bucket_name = local.sam_bucket_name
+  tags                      = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
-# Lambda — AI processing function + S3 ObjectCreated trigger
-# Gated OFF by default: Terraform does not build app code. The zip is produced by lablumen-app CI
-# (Linux) and consumed as a prebuilt artifact when var.enable_ai_lambda is turned on.
+# KMS — shared platform CMK (encrypts ECR repositories + Secrets Manager secrets)
+# Key policy enables IAM delegation (standard): all role-level grants are in modules/iam.
+# Rotation is annual (AWS-managed); deletion window = 7 days (shortest allowed).
 # ---------------------------------------------------------------------------
-module "lambda" {
-  source = "./modules/lambda"
-  count  = var.enable_ai_lambda ? 1 : 0
+resource "aws_kms_key" "platform" {
+  description             = "Shared platform CMK — encrypts ECR repos and Secrets Manager secrets."
+  enable_key_rotation     = true
+  deletion_window_in_days = 7
 
-  function_name      = var.lambda_function_name
-  source_path        = "${path.module}/../lablumen-app/serverless/ai-service"
-  reports_bucket_id  = module.s3.reports_bucket_id
-  reports_bucket_arn = module.s3.reports_bucket_arn
-  tags               = local.common_tags
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # Standard: allow the account root to delegate key access via IAM policies.
+        # Without this, no IAM policy (however permissive) can grant key access.
+        Sid       = "EnableIAMPolicies"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${local.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        # Secrets Manager service principal — needed so SM can encrypt/decrypt secret values
+        # using the CMK on behalf of the caller. The caller IAM role also needs kms:Decrypt.
+        Sid       = "AllowSecretsManager"
+        Effect    = "Allow"
+        Principal = { Service = "secretsmanager.amazonaws.com" }
+        Action    = ["kms:GenerateDataKey*", "kms:Decrypt", "kms:DescribeKey"]
+        Resource  = "*"
+      }
+    ]
+  })
+
+  tags = local.common_tags
 }
+
+resource "aws_kms_alias" "platform" {
+  name          = "alias/${var.project}-platform"
+  target_key_id = aws_kms_key.platform.key_id
+}
+
+# EKS managed node group — must be able to decrypt KMS-encrypted ECR image layers on pull.
+resource "aws_iam_role_policy" "eks_nodes_kms" {
+  name = "${var.project}-eks-nodes-kms"
+  role = module.eks.node_group_iam_role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["kms:Decrypt", "kms:DescribeKey"]
+      Resource = aws_kms_key.platform.arn
+    }]
+  })
+}
+
+# Karpenter-provisioned nodes — same requirement for spot/on-demand nodes launched by Karpenter.
+resource "aws_iam_role_policy" "karpenter_nodes_kms" {
+  name = "${var.project}-karpenter-nodes-kms"
+  role = module.eks.karpenter_node_iam_role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["kms:Decrypt", "kms:DescribeKey"]
+      Resource = aws_kms_key.platform.arn
+    }]
+  })
+}
+
+
+# ---------------------------------------------------------------------------
+# Lambda security group — attached to the SAM-deployed ai-processing function.
+# Placed here (root) so it references module.vpc outputs without a module dependency cycle.
+# ---------------------------------------------------------------------------
+resource "aws_security_group" "ai_lambda" {
+  name_prefix = "${var.project}-ai-lambda-"
+  description = "Lambda ai-processing: egress to RDS (5432) and AWS APIs (443)."
+  vpc_id      = module.vpc.vpc_id
+
+  egress {
+    description = "Postgres to RDS in DB subnets"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  egress {
+    description = "HTTPS to AWS APIs via VPC endpoints or NAT (Bedrock, Textract, S3, SM, SSM)"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = local.common_tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+
+# ---------------------------------------------------------------------------
+# Lambda — REMOVED. The lablumen-ai-service is deployed via SAM CI (`sam deploy`).
+# Terraform owns the IAM execution role, Lambda security group, and SAM artifacts bucket;
+# SAM owns the CloudFormation stack `lablumen-ai` and the Lambda function itself.
+# See: lablumen-ai-service/.github/workflows/ci.yml (deploy job).
+# ---------------------------------------------------------------------------
+
 
 # ---------------------------------------------------------------------------
 # SQS — notifications queue
@@ -106,8 +203,10 @@ module "ecr" {
   source = "./modules/ecr"
 
   repositories = var.ecr_repositories
+  kms_key_arn  = aws_kms_key.platform.arn
   tags         = local.common_tags
 }
+
 
 # ---------------------------------------------------------------------------
 # Cognito — user pool, SPA web client, role groups
@@ -136,9 +235,11 @@ module "secretsmanager" {
   # blocks recreating a same-named secret, which trips re-applies on this frequently-rebuilt platform.
   # This is a re-populatable shell (no value stored by Terraform), so immediate purge is safe.
   secret_recovery_window_days = 0
+  kms_key_arn                 = aws_kms_key.platform.arn
 
   tags = local.common_tags
 }
+
 
 # ---------------------------------------------------------------------------
 # SSM Parameter Store — non-sensitive runtime config
@@ -158,9 +259,15 @@ module "ssm" {
     "presigned-url-ttl"     = "3600"
     "cors-origins"          = "https://${local.frontend_fqdn},http://localhost:5173"
     "api-url"               = "https://${local.api_fqdn}"
+    # Lambda config — read by lablumen-ai-service CI (sam deploy parameter-overrides)
+    "lambda-exec-role-arn"     = module.iam.ai_lambda_exec_role_arn
+    "lambda-subnet-ids"        = join(",", module.vpc.private_subnets)
+    "lambda-security-group-id" = aws_security_group.ai_lambda.id
+    "sam-artifacts-bucket"     = module.s3.sam_artifacts_bucket_name
   }
   tags = local.common_tags
 }
+
 
 # ---------------------------------------------------------------------------
 # IAM — GitHub OIDC + pipeline roles + IRSA roles (incl. external-dns)
@@ -175,6 +282,8 @@ module "iam" {
   state_bucket_name           = local.state_bucket_name
   backend_ecr_repository_arns = [for name, arn in module.ecr.repository_arns : arn if name != "lablumen/frontend"]
   frontend_ecr_repository_arn = module.ecr.repository_arns["lablumen/frontend"]
+  sam_artifacts_bucket_arn    = module.s3.sam_artifacts_bucket_arn
+  kms_key_arn                 = aws_kms_key.platform.arn
 
   # EKS / IRSA
   oidc_provider_arn       = module.eks.oidc_provider_arn
@@ -186,6 +295,8 @@ module "iam" {
 
   tags = local.common_tags
 }
+
+
 
 # ---------------------------------------------------------------------------
 # EKS access for the CI tf-apply role — Kubernetes cluster-admin (RBAC), SEPARATE from its AWS IAM

@@ -11,12 +11,8 @@ resource "aws_security_group" "rds" {
     cidr_blocks = [var.vpc_cidr]
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # No egress rule — RDS is a managed service that does not initiate outbound connections.
+  # AWS-managed RDS internals (replication, backups) use separate AWS-owned network paths.
 
   tags = var.tags
 
@@ -24,6 +20,7 @@ resource "aws_security_group" "rds" {
     create_before_destroy = true
   }
 }
+
 
 module "rds" {
   source  = "terraform-aws-modules/rds/aws"

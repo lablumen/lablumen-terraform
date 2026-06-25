@@ -14,7 +14,13 @@ variable "keep_image_count" {
   }
 }
 
+variable "kms_key_arn" {
+  type        = string
+  description = "ARN of the shared platform CMK used to encrypt ECR repositories (encryption_type = KMS)."
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags applied to all resources."
 }
+

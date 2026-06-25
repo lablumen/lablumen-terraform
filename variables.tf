@@ -165,19 +165,6 @@ variable "reports_bucket_name" {
   default     = null
 }
 
-# ---- Lambda ----
-
-variable "enable_ai_lambda" {
-  type        = bool
-  description = "Whether to deploy the AI processing Lambda. Default false: Terraform must NOT build app code locally — the zip is built by lablumen-app CI (Linux) and consumed as a prebuilt artifact. Flip on once that artifact path exists."
-  default     = false
-}
-
-variable "lambda_function_name" {
-  type    = string
-  default = "lablumen-ai-processing"
-}
-
 # ---- Messaging ----
 
 variable "notifications_queue_name" {

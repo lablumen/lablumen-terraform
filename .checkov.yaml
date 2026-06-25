@@ -1,0 +1,66 @@
+# Checkov suppression baseline — triaged 2026-06-25.
+# Each suppressed check has a documented rationale. Re-evaluate on major infra changes.
+
+skip-check:
+  # ── Supply-chain / module pinning ─────────────────────────────────────────
+  - CKV_TF_1
+  # Rationale: All terraform-aws-modules sources use semver registry pins (e.g. ~> 5.8).
+  # The Terraform Registry enforces immutable releases, making commit-hash pinning redundant.
+  # Pinning to commit hashes for public registry modules is impractical and adds no real
+  # supply-chain protection beyond the existing semver lock.
+
+  # ── Security-group attachment false positive ───────────────────────────────
+  - CKV2_AWS_5
+  # Rationale: module.rds.aws_security_group.rds is attached to the RDS instance via
+  # vpc_security_group_ids inside the terraform-aws-modules/rds module. Checkov cannot
+  # trace cross-module resource associations, producing a false positive.
+
+  # ── Secrets Manager rotation ───────────────────────────────────────────────
+  - CKV2_AWS_57
+  # Rationale: lablumen/app/database-url uses RDS Secrets Manager-managed rotation
+  # (manage_master_user_password = true in modules/rds). lablumen/app/grafana-admin is a
+  # manually-managed admin credential JSON blob — rotation requires a custom Lambda rotator
+  # which is not warranted for a non-prod monitoring secret.
+
+  # ── Terraform state bucket hardening ──────────────────────────────────────
+  - CKV_AWS_18
+  # Rationale: Access logging on the state bucket (bootstrap/main.tf) is not required.
+  # The bucket is write-protected by prevent_destroy and versioning. Log data would
+  # itself need another bucket — adds circular complexity for zero security benefit here.
+
+  - CKV_AWS_144
+  # Rationale: Cross-region replication for the Terraform state bucket is not warranted
+  # for this non-production platform. State is recoverable from infrastructure code.
+
+  - CKV2_AWS_61
+  # Rationale: Lifecycle rules on the state bucket risk expiring state versions needed for
+  # rollback. Versioning (enabled) provides recovery; pruning old versions is a manual op.
+
+  - CKV2_AWS_62
+  # Rationale: S3 event notifications on the state bucket serve no operational purpose
+  # and would generate noise. State changes are tracked through CI plan/apply output.
+
+  # ── SSM Parameter Store encryption ────────────────────────────────────────
+  - CKV2_AWS_34
+  # Rationale: All SSM parameters in /lablumen/config/* are non-sensitive runtime config
+  # (bucket names, Cognito IDs, model names, CORS origins). No passwords or secrets are
+  # stored here by design — see modules/ssm/main.tf comment. Changing to SecureString
+  # would require IAM KMS additions to every reader (ESO, service pods, CI) for zero
+  # security improvement, since the data is public-safe by construction.
+
+  # ── IAM: Terraform apply role (AdministratorAccess) ──────────────────────
+  - CKV_AWS_274
+  # Rationale: The lablumen-tf-apply role provisions and destroys the entire platform:
+  # EKS cluster, VPC, RDS, KMS, IAM roles, VPC endpoints, ECR repos, Cognito pool.
+  # No meaningful scope narrower than AdministratorAccess can cover this, and partial
+  # admin roles create brittle, hard-to-maintain permission lists. The role is gated by
+  # the GitHub Environment 'production' (required-reviewer approval), OIDC-federated
+  # (no static credentials), and scoped to the terraform repo only.
+
+  # ── IAM: Bedrock / Textract wildcard resource ─────────────────────────────
+  - CKV_AWS_355
+  # Rationale: AWS does not support resource-level restrictions for bedrock:InvokeModel
+  # or textract:DetectDocumentText / textract:AnalyzeDocument. The IAM policy engine
+  # requires Resource: "*" for these actions — any ARN restriction is rejected.
+  # Ref: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazontextract.html
+  # Ref: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonbedrock.html

@@ -29,3 +29,9 @@ output "karpenter_controller_role_arn" {
 output "cluster_certificate_authority_data" {
   value = module.eks.cluster_certificate_authority_data
 }
+
+output "node_group_iam_role_name" {
+  description = "IAM role name of the default EKS managed node group. Used to attach KMS Decrypt for KMS-encrypted ECR image pulls."
+  value       = module.eks.eks_managed_node_groups["default"].iam_role_name
+}
+

@@ -27,3 +27,23 @@ module "reports_bucket" {
   tags = var.tags
 }
 
+# SAM deployment artifacts — private, no KMS (deployment zips are not sensitive).
+# Used by `sam deploy --s3-bucket` in the lablumen-ai-service CI pipeline.
+module "sam_artifacts_bucket" {
+  source  = "terraform-aws-modules/s3-bucket/aws"
+  version = "~> 4.1"
+
+  bucket        = var.sam_artifacts_bucket_name
+  force_destroy = true
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+
+  versioning = {
+    enabled = false
+  }
+
+  tags = var.tags
+}

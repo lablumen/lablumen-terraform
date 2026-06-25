@@ -137,6 +137,21 @@ resource "aws_iam_role_policy" "app_ci_ecr" {
   })
 }
 
+# KMS — required to push to KMS-encrypted ECR repositories.
+resource "aws_iam_role_policy" "app_ci_ecr_kms" {
+  name = "${var.project}-app-ci-ecr-kms"
+  role = aws_iam_role.app_ci_ecr.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["kms:GenerateDataKey*", "kms:Decrypt", "kms:DescribeKey"]
+      Resource = var.kms_key_arn
+    }]
+  })
+}
+
+
 # ---- Role: frontend build → push image to ECR (frontend repo only) -----------------
 resource "aws_iam_role" "frontend_build" {
   name = "${var.project}-frontend-build"
@@ -180,6 +195,21 @@ resource "aws_iam_role_policy" "frontend_build" {
   })
 }
 
+# KMS — required to push to KMS-encrypted ECR repositories.
+resource "aws_iam_role_policy" "frontend_build_kms" {
+  name = "${var.project}-frontend-build-kms"
+  role = aws_iam_role.frontend_build.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["kms:GenerateDataKey*", "kms:Decrypt", "kms:DescribeKey"]
+      Resource = var.kms_key_arn
+    }]
+  })
+}
+
+
 # ===================================================================================
 # IRSA roles (workload identity for in-cluster controllers + services)
 # ===================================================================================
@@ -217,9 +247,12 @@ resource "aws_iam_role_policy" "eso" {
       # ESO dataFrom find-by-name discovers params via DescribeParameters, which IAM only allows on "*"
       # (no resource-level scoping). Values are still readable only under /lablumen/config/* above.
       { Effect = "Allow", Action = ["ssm:DescribeParameters"], Resource = "*" },
+      # KMS — decrypt values from KMS-encrypted Secrets Manager secrets.
+      { Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey"], Resource = var.kms_key_arn },
     ]
   })
 }
+
 
 # ---- report-service — S3 + Bedrock (trusts prod AND dev namespaces) -----------------
 module "report_service_irsa" {
@@ -326,35 +359,108 @@ module "external_dns_irsa" {
   tags = var.tags
 }
 
-# ---- ai-lambda — Textract + Bedrock + S3 (IRSA kept for parity with the workload) ---
-module "ai_lambda_irsa" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  version = "~> 5.44"
+# ---- ai-lambda execution role — assumed by the Lambda function itself -----------------
+# Trust: lambda.amazonaws.com (standard Lambda execution trust, not IRSA).
+# AWSLambdaVPCAccessExecutionRole = VPC ENI management + CloudWatch Logs.
+resource "aws_iam_role" "ai_lambda_exec" {
+  name = "${var.project}-ai-lambda-exec"
 
-  role_name = "${var.project}-ai-lambda"
-  oidc_providers = {
-    main = {
-      provider_arn               = var.oidc_provider_arn
-      namespace_service_accounts = ["lablumen:ai-lambda"]
-    }
-  }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
   tags = var.tags
 }
 
-resource "aws_iam_policy" "ai_lambda" {
-  name = "${var.project}-ai-lambda"
+resource "aws_iam_role_policy_attachment" "ai_lambda_exec_vpc" {
+  role       = aws_iam_role.ai_lambda_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+resource "aws_iam_role_policy" "ai_lambda_exec" {
+  name = "${var.project}-ai-lambda-exec"
+  role = aws_iam_role.ai_lambda_exec.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # OCR and document analysis
       { Effect = "Allow", Action = ["textract:DetectDocumentText", "textract:AnalyzeDocument"], Resource = "*" },
+      # AI inference (Nova Lite only; governed by org SCP)
       { Effect = "Allow", Action = ["bedrock:InvokeModel"], Resource = "*" },
-      { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = "${var.reports_bucket_arn}/*" },
+      # Read report PDFs from the private reports bucket
+      { Effect = "Allow", Action = ["s3:GetObject"], Resource = "${var.reports_bucket_arn}/*" },
+      # Read DATABASE_URL at cold start (runtime secret fetch — no URL in CF params)
+      { Effect = "Allow", Action = ["secretsmanager:GetSecretValue"], Resource = "arn:aws:secretsmanager:*:*:secret:lablumen/app/database-url*" },
+      # KMS — decrypt the KMS-encrypted Secrets Manager secret at cold start
+      { Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey"], Resource = var.kms_key_arn },
     ]
   })
+}
+
+
+# ---- ai-lambda-deploy — GitHub Actions OIDC role for SAM CI deploys ------------------
+# Trust: lablumen/lablumen-ai-service repo on main branch.
+# Scope: CloudFormation + Lambda update + SAM artifact bucket + SSM read + IAM PassRole.
+resource "aws_iam_role" "ai_lambda_deploy" {
+  name = "${var.project}-ai-lambda-deploy"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
+        StringLike   = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.ai_lambda_repo}:*" }
+      }
+    }]
+  })
+
   tags = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "ai_lambda" {
-  role       = module.ai_lambda_irsa.iam_role_name
-  policy_arn = aws_iam_policy.ai_lambda.arn
+resource "aws_iam_role_policy" "ai_lambda_deploy" {
+  name = "${var.project}-ai-lambda-deploy"
+  role = aws_iam_role.ai_lambda_deploy.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      # CloudFormation — SAM uses it to create/update the lablumen-ai stack
+      { Effect = "Allow", Action = ["cloudformation:*"], Resource = "arn:aws:cloudformation:*:*:stack/lablumen-ai*" },
+      { Effect = "Allow", Action = ["cloudformation:ValidateTemplate"], Resource = "*" },
+      # Lambda — update function code and config on redeploy
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:CreateFunction", "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration",
+          "lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:AddPermission",
+          "lambda:RemovePermission", "lambda:PublishVersion", "lambda:ListTags", "lambda:TagResource",
+          "lambda:DeleteFunction",
+        ]
+        Resource = "arn:aws:lambda:*:*:function:lablumen-ai*"
+      },
+      # S3 — read/write SAM deployment artifacts bucket
+      { Effect = "Allow", Action = ["s3:ListBucket"], Resource = var.sam_artifacts_bucket_arn },
+      { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = "${var.sam_artifacts_bucket_arn}/*" },
+      # SSM — read VPC/role params for sam deploy parameter-overrides
+      { Effect = "Allow", Action = ["ssm:GetParameter", "ssm:GetParameters"], Resource = "arn:aws:ssm:*:*:parameter/lablumen/config/*" },
+      # KMS — decrypt/encrypt deployment artifacts
+      { Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"], Resource = var.kms_key_arn },
+      # IAM PassRole — SAM passes the exec role to the Lambda function
+      { Effect = "Allow", Action = ["iam:PassRole"], Resource = aws_iam_role.ai_lambda_exec.arn },
+      # S3 event notification — SAM wires the existing bucket's notification
+      { Effect = "Allow", Action = ["s3:GetBucketNotification", "s3:PutBucketNotification"], Resource = var.reports_bucket_arn },
+      # Lambda permission — SAM calls AddPermission to allow S3 to invoke the function
+      { Effect = "Allow", Action = ["lambda:GetPolicy"], Resource = "arn:aws:lambda:*:*:function:lablumen-ai*" },
+      # Logs — CloudFormation creates/manages the log group
+      { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:DescribeLogGroups", "logs:PutRetentionPolicy", "logs:DeleteLogGroup"], Resource = "arn:aws:logs:*:*:log-group:/aws/lambda/lablumen-ai*" },
+    ]
+  })
 }
+

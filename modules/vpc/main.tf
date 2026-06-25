@@ -50,11 +50,11 @@ resource "aws_security_group" "vpc_endpoints" {
   }
 
   egress {
-    description = "Allow all outbound"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS responses back to VPC (interface endpoints are request/response only)"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.cidr]
   }
 
   tags = var.tags
@@ -63,6 +63,7 @@ resource "aws_security_group" "vpc_endpoints" {
     create_before_destroy = true
   }
 }
+
 
 # ---- Gateway endpoint: S3 ---------------------------------------------------------
 # Free; attaches to route tables (no ENIs). Routes S3 traffic from private subnets

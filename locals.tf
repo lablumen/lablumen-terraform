@@ -8,6 +8,8 @@ locals {
   # "just works"; an explicit var override wins if you need a specific name.
   reports_bucket_name = coalesce(var.reports_bucket_name, "${var.project}-reports-${local.account_id}")
   state_bucket_name   = coalesce(var.state_bucket_name, "${var.project}-tfstate-${local.account_id}")
+  sam_bucket_name     = "${var.project}-sam-${local.account_id}"
+
 
   # ECR registry base URL — consumed downstream (k8s global.imageRegistry / app CI). Derived, not pinned.
   image_registry = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"

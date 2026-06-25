@@ -7,7 +7,11 @@ resource "aws_secretsmanager_secret" "runtime" {
   name        = each.key
   description = each.value
 
+  # Encrypt with the shared platform CMK for key-level access control + CloudTrail audit.
+  kms_key_id = var.kms_key_arn
+
   recovery_window_in_days = var.secret_recovery_window_days
 
   tags = var.tags
 }
+

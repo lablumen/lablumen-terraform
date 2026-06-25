@@ -49,7 +49,12 @@ output "external_dns_role_arn" {
   description = "Annotate the external-dns ServiceAccount (kube-system)."
 }
 
-output "ai_lambda_role_arn" {
-  value       = module.ai_lambda_irsa.iam_role_arn
-  description = "IRSA role ARN for ai-lambda."
+output "ai_lambda_exec_role_arn" {
+  value       = aws_iam_role.ai_lambda_exec.arn
+  description = "Execution role ARN for the ai Lambda (lambda.amazonaws.com trust). Stored in SSM and passed to SAM as ExecutionRoleArn parameter."
+}
+
+output "ai_lambda_deploy_role_arn" {
+  value       = aws_iam_role.ai_lambda_deploy.arn
+  description = "GitHub OIDC deploy role ARN for lablumen-ai-service CI (sam deploy)."
 }

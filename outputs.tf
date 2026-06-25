@@ -97,7 +97,7 @@ output "external_dns_role_arn" {
 }
 
 output "ai_lambda_role_arn" {
-  value = module.iam.ai_lambda_role_arn
+  value = module.iam.ai_lambda_exec_role_arn
 }
 
 output "karpenter_controller_role_arn" {

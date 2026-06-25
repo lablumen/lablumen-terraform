@@ -14,7 +14,13 @@ variable "secret_recovery_window_days" {
   }
 }
 
+variable "kms_key_arn" {
+  type        = string
+  description = "ARN of the shared platform CMK used to encrypt Secrets Manager secrets (kms_key_id)."
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags applied to all resources."
 }
+
