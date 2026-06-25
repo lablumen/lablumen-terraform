@@ -262,9 +262,9 @@ module "ssm" {
     # Lambda config — read by lablumen-ai-service CI (sam deploy parameter-overrides)
     "bedrock-cross-account-role-arn" = var.bedrock_cross_account_role_arn
     "lambda-exec-role-arn"           = module.iam.ai_lambda_exec_role_arn
-    "lambda-subnet-ids"        = join(",", module.vpc.private_subnets)
-    "lambda-security-group-id" = aws_security_group.ai_lambda.id
-    "sam-artifacts-bucket"     = module.s3.sam_artifacts_bucket_name
+    "lambda-subnet-ids"              = join(",", module.vpc.private_subnets)
+    "lambda-security-group-id"       = aws_security_group.ai_lambda.id
+    "sam-artifacts-bucket"           = module.s3.sam_artifacts_bucket_name
   }
   tags = local.common_tags
 }
@@ -279,13 +279,13 @@ module "iam" {
   project = var.project
 
   # CI/CD identity
-  github_org                  = var.github_org
-  state_bucket_name           = local.state_bucket_name
-  backend_ecr_repository_arns = [for name, arn in module.ecr.repository_arns : arn if name != "lablumen/frontend"]
-  frontend_ecr_repository_arn = module.ecr.repository_arns["lablumen/frontend"]
-  sam_artifacts_bucket_arn           = module.s3.sam_artifacts_bucket_arn
-  kms_key_arn                        = aws_kms_key.platform.arn
-  bedrock_cross_account_role_arn     = var.bedrock_cross_account_role_arn
+  github_org                     = var.github_org
+  state_bucket_name              = local.state_bucket_name
+  backend_ecr_repository_arns    = [for name, arn in module.ecr.repository_arns : arn if name != "lablumen/frontend"]
+  frontend_ecr_repository_arn    = module.ecr.repository_arns["lablumen/frontend"]
+  sam_artifacts_bucket_arn       = module.s3.sam_artifacts_bucket_arn
+  kms_key_arn                    = aws_kms_key.platform.arn
+  bedrock_cross_account_role_arn = var.bedrock_cross_account_role_arn
 
   # EKS / IRSA
   oidc_provider_arn       = module.eks.oidc_provider_arn
