@@ -20,8 +20,8 @@ database_subnets = ["10.0.201.0/24", "10.0.202.0/24"]
 
 cluster_version = "1.31"
 
-# Org SCP blocks t3.large — t3.medium is permitted.
-node_instance_types = ["t3.medium"]
+# Account restricts to free-tier-eligible types. c7i-flex.large = 4 GiB / 2 vCPU (equivalent to t3.medium).
+node_instance_types = ["c7i-flex.large"]
 node_min_size       = 1
 node_max_size       = 4
 node_desired_size   = 2

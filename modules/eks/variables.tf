@@ -20,7 +20,7 @@ variable "subnet_ids" {
 
 variable "node_instance_types" {
   type        = list(string)
-  description = "EC2 instance type(s) for the default managed node group. (t3.large is blocked by the org SCP; use t3.medium.)"
+  description = "EC2 instance type(s) for the default managed node group. Account restricts to free-tier-eligible types — use c7i-flex.large (4 GiB) or m7i-flex.large (8 GiB)."
   default     = ["t3.medium"]
 }
 
