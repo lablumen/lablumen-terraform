@@ -212,6 +212,14 @@ variable "state_bucket_name" {
   default     = null
 }
 
+# ---- Cross-account Bedrock ----
+
+variable "bedrock_cross_account_role_arn" {
+  type        = string
+  description = "ARN of the IAM role in the Bedrock-enabled account that the ai-lambda-exec role assumes to invoke Bedrock models. No default — provided via TF_VAR_ in CI or interactive prompt locally."
+  sensitive   = true
+}
+
 # ---- Tags ----
 
 variable "tags" {

@@ -21,6 +21,8 @@ env:
   AWS_REGION: us-east-1
   TF_VERSION: "1.15.5"   # >=1.10 required for the S3 backend `use_lockfile` (native state locking)
   # domain_name is committed in terraform.tfvars (public, non-secret) — no env override needed.
+  # Cross-account Bedrock role ARN — sensitive, stored as GitHub secret, never in tfvars.
+  TF_VAR_bedrock_cross_account_role_arn: ${{ secrets.BEDROCK_CROSS_ACCOUNT_ROLE_ARN }}
 
 jobs:
   # ---- 1. SCAN -------------------------------------------------------------------

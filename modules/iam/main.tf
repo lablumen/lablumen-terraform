@@ -390,8 +390,8 @@ resource "aws_iam_role_policy" "ai_lambda_exec" {
     Statement = [
       # OCR and document analysis
       { Effect = "Allow", Action = ["textract:DetectDocumentText", "textract:AnalyzeDocument"], Resource = "*" },
-      # AI inference (Nova Lite only; governed by org SCP)
-      { Effect = "Allow", Action = ["bedrock:InvokeModel"], Resource = "*" },
+      # AI inference — Lambda assumes a cross-account role in the Bedrock-enabled account
+      { Effect = "Allow", Action = ["sts:AssumeRole"], Resource = var.bedrock_cross_account_role_arn },
       # Read report PDFs from the private reports bucket
       { Effect = "Allow", Action = ["s3:GetObject"], Resource = "${var.reports_bucket_arn}/*" },
       # Read DATABASE_URL at cold start (runtime secret fetch — no URL in CF params)
@@ -466,7 +466,8 @@ resource "aws_iam_role_policy" "ai_lambda_deploy" {
         Effect = "Allow"
         Action = [
           "events:PutRule", "events:DeleteRule", "events:DescribeRule",
-          "events:PutTargets", "events:RemoveTargets"
+          "events:PutTargets", "events:RemoveTargets",
+          "events:TagResource", "events:UntagResource"
         ]
         Resource = "arn:aws:events:*:*:rule/lablumen-ai-*"
       },

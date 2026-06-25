@@ -100,6 +100,12 @@ variable "kms_key_arn" {
   description = "Shared KMS key ARN for ECR and Secrets Manager access."
 }
 
+variable "bedrock_cross_account_role_arn" {
+  type        = string
+  description = "ARN of the cross-account IAM role (in the Bedrock-enabled account) that ai-lambda-exec assumes to invoke Bedrock models."
+  sensitive   = true
+}
+
 variable "tags" {
   type        = map(string)
   description = "Tags applied to all resources."
