@@ -322,3 +322,23 @@ resource "aws_eks_access_policy_association" "tf_apply_admin" {
 
   depends_on = [aws_eks_access_entry.tf_apply]
 }
+
+# EKS access for the CI tf-plan role — allows the plan job to inspect kubernetes_* resources
+resource "aws_eks_access_entry" "tf_plan" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = module.iam.tf_plan_role_arn
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "tf_plan_admin" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = module.iam.tf_plan_role_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.tf_plan]
+}
+
