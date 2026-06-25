@@ -435,17 +435,8 @@ resource "aws_iam_role_policy" "ai_lambda_deploy" {
       { Effect = "Allow", Action = ["cloudformation:*"], Resource = "arn:aws:cloudformation:*:*:stack/lablumen-ai*" },
       { Effect = "Allow", Action = ["cloudformation:ValidateTemplate"], Resource = "*" },
       { Effect = "Allow", Action = ["cloudformation:CreateChangeSet"], Resource = "arn:aws:cloudformation:*:aws:transform/Serverless-2016-10-31" },
-      # Lambda — update function code and config on redeploy
-      {
-        Effect = "Allow"
-        Action = [
-          "lambda:CreateFunction", "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration",
-          "lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:AddPermission",
-          "lambda:RemovePermission", "lambda:PublishVersion", "lambda:ListTags", "lambda:TagResource",
-          "lambda:UntagResource", "lambda:DeleteFunction",
-        ]
-        Resource = "arn:aws:lambda:*:*:function:lablumen-ai*"
-      },
+      # Lambda — full access scoped to lablumen-ai functions (deploy + rollback require the full action set)
+      { Effect = "Allow", Action = ["lambda:*"], Resource = "arn:aws:lambda:*:*:function:lablumen-ai*" },
       # S3 — read/write SAM deployment artifacts bucket
       { Effect = "Allow", Action = ["s3:ListBucket"], Resource = var.sam_artifacts_bucket_arn },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = "${var.sam_artifacts_bucket_arn}/*" },
@@ -457,8 +448,6 @@ resource "aws_iam_role_policy" "ai_lambda_deploy" {
       { Effect = "Allow", Action = ["iam:PassRole"], Resource = aws_iam_role.ai_lambda_exec.arn },
       # S3 event notification — SAM wires the existing bucket's notification
       { Effect = "Allow", Action = ["s3:GetBucketNotification", "s3:PutBucketNotification"], Resource = var.reports_bucket_arn },
-      # Lambda permission — SAM calls AddPermission to allow S3 to invoke the function
-      { Effect = "Allow", Action = ["lambda:GetPolicy"], Resource = "arn:aws:lambda:*:*:function:lablumen-ai*" },
       # Logs — CloudFormation creates/manages the log group
       { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:DescribeLogGroups", "logs:PutRetentionPolicy", "logs:DeleteLogGroup"], Resource = "arn:aws:logs:*:*:log-group:/aws/lambda/lablumen-ai*" },
       # EventBridge — SAM creates EventBridge rules to route S3 event notification to Lambda
