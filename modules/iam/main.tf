@@ -470,6 +470,16 @@ resource "aws_iam_role_policy" "ai_lambda_deploy" {
         ]
         Resource = "arn:aws:events:*:*:rule/lablumen-ai-*"
       },
+      # EC2 — required to describe and validate VPC subnets and security groups for the Lambda config
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs"
+        ]
+        Resource = "*"
+      },
     ]
   })
 }
