@@ -442,7 +442,7 @@ resource "aws_iam_role_policy" "ai_lambda_deploy" {
           "lambda:CreateFunction", "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration",
           "lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:AddPermission",
           "lambda:RemovePermission", "lambda:PublishVersion", "lambda:ListTags", "lambda:TagResource",
-          "lambda:DeleteFunction",
+          "lambda:UntagResource", "lambda:DeleteFunction",
         ]
         Resource = "arn:aws:lambda:*:*:function:lablumen-ai*"
       },
