@@ -63,6 +63,21 @@ module "s3" {
   tags                      = local.common_tags
 }
 
+# Allow the cross-account Textract/Bedrock role to read reports so Textract can
+# access the PDF via S3Object reference using the caller's cross-account credentials.
+resource "aws_s3_bucket_policy" "reports_cross_account_read" {
+  bucket = module.s3.reports_bucket_id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { AWS = var.bedrock_cross_account_role_arn }
+      Action    = "s3:GetObject"
+      Resource  = "${module.s3.reports_bucket_arn}/*"
+    }]
+  })
+}
+
 # ---------------------------------------------------------------------------
 # KMS — shared platform CMK (encrypts ECR repositories + Secrets Manager secrets)
 # Key policy enables IAM delegation (standard): all role-level grants are in modules/iam.
