@@ -81,9 +81,13 @@ jobs:
 
       - name: Generate Infracost Cost Estimate
         run: |
+          # Generate JSON output for the PR comment
           infracost breakdown --path tfplan.json \
                               --format json \
                               --out-file /tmp/infracost.json
+          
+          # Print human-readable breakdown directly to job logs
+          infracost breakdown --path tfplan.json
 
       - name: Post Infracost Comment
         if: github.event_name == 'pull_request'
