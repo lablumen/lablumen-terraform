@@ -8,7 +8,7 @@
 # name the bootstrap stack created (`terraform output -raw state_bucket`).
 terraform {
   backend "s3" {
-    bucket       = "lablumen-tfstate-261523981519"
+    bucket       = "lablumen-tfstate-025392543842"
     key          = "global/terraform.tfstate"
     region       = "us-east-1"
     use_lockfile = true
