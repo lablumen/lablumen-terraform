@@ -80,3 +80,5 @@ jobs:
 
       - name: Terraform destroy
         run: terraform destroy -input=false -auto-approve -no-color
+        env:
+          TF_VAR_bedrock_cross_account_role_arn: ${{ secrets.BEDROCK_CROSS_ACCOUNT_ROLE_ARN }}
